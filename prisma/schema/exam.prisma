@@ -1,0 +1,12 @@
+model Exam {
+  id          String       @id @default(uuid())
+  title       String       // e.g., "Midterm", "Final", "Quiz 1"
+  maxMarks    Float
+  weightage   Float        // e.g., 0.30 for 30%
+  examDate    DateTime
+  sectionId   String
+  section     Section      @relation(fields: [sectionId], references: [id])
+  results     ExamResult[]
+
+  @@map("exam")
+}

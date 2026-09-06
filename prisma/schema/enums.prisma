@@ -1,0 +1,33 @@
+enum Role {
+  STUDENT
+  INSTRUCTOR
+  DEPARTMENT_ADMIN
+  REGISTRAR
+  FINANCE_ADMIN
+  SUPER_ADMIN
+}
+
+enum EnrollmentStatus {
+  ENROLLED
+  DROPPED
+  WITHDRAWN
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum FeeStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+}
+
+enum AuthProvider {
+  GOOGLE
+  CREDENTIAL
+}

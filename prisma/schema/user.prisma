@@ -1,0 +1,20 @@
+model User {
+  id            String          @id @default(uuid())
+  email         String          @unique
+  password      String?
+  name          String
+  googleId      String?
+  authProvider  AuthProvider    @default(CREDENTIAL)
+  emailVerified Boolean         @default(false)
+  role          Role            @default(STUDENT)
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  // Profiles based on roles
+  student       Student?
+  instructor    Instructor?
+  notifications Notification[]
+
+  @@map("user")
+}

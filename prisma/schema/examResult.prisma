@@ -1,0 +1,11 @@
+model ExamResult {
+  id         String   @id @default(uuid())
+  marksObtained Float
+  examId     String
+  exam       Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  studentId  String
+  student    Student  @relation(fields: [studentId], references: [id])
+  
+  @@map("ExamResult")
+  @@unique([examId, studentId])
+}

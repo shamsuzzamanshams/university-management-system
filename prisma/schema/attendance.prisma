@@ -1,0 +1,13 @@
+model Attendance {
+  id          String           @id @default(uuid())
+  date        DateTime
+  status      AttendanceStatus
+  studentId   String
+  student     Student          @relation(fields: [studentId], references: [id])
+  sectionId   String
+  section     Section          @relation(fields: [sectionId], references: [id])
+  remarks     String?
+
+  @@map("attendance")
+  @@unique([studentId, sectionId, date])
+}

@@ -1,0 +1,18 @@
+model Course {
+  id            String       @id @default(uuid())
+  code          String       @unique // e.g., "CS102"
+  title         String
+  credits       Int
+  description   String?
+  departmentId  String
+  department    Department   @relation(fields: [departmentId], references: [id])
+  
+  // Self-referential relation for prerequisites (Many-to-Many)
+  prerequisites Course[]     @relation("CoursePrerequisites")
+  requiredFor   Course[]     @relation("CoursePrerequisites")
+  
+  programs      Program[]    @relation("ProgramCourses")
+  sections      Section[]
+
+  @@map("course")
+}

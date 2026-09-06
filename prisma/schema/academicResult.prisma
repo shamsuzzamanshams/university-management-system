@@ -1,0 +1,14 @@
+model AcademicResult {
+  id                 String   @id @default(uuid())
+  studentId          String
+  student            Student  @relation(fields: [studentId], references: [id])
+  semesterCode       String   // Storing string code for historical freeze (e.g., "2026-FALL")
+  gpa                Float    // Semester GPA
+  cgpa               Float    // Cumulative GPA at that point in time
+  totalCreditsEarned Float    // Fixed: Combined into a single camelCase word
+  remarks            String?
+
+
+  @@map("academicResult")
+  @@unique([studentId, semesterCode])
+}

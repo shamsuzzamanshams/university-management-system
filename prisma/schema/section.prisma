@@ -1,0 +1,20 @@
+model Section {
+  id           String             @id @default(uuid())
+  name         String             // e.g., "Section A"
+  capacity     Int                // To handle enrollment constraints
+  roomNumber   String?
+  schedule     String             // e.g., "Mon/Wed 10:00 AM - 11:30 AM"
+  courseId     String
+  course       Course             @relation(fields: [courseId], references: [id])
+  semesterId   String
+  semester     Semester           @relation(fields: [semesterId], references: [id])
+  instructorId String
+  instructor   Instructor         @relation(fields: [instructorId], references: [id])
+  
+  enrollments  CourseEnrollment[]
+  attendances  Attendance[]
+  exams        Exam[]
+
+  @@map("section")
+  @@unique([courseId, semesterId, name]) // A course can't have duplicate section names in the same semester
+}

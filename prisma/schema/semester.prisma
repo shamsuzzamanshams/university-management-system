@@ -1,0 +1,13 @@
+model Semester {
+  id                String             @id @default(uuid())
+  name              String             // e.g., "Fall 2026"
+  code              String             @unique // e.g., "2026-FALL"
+  startDate         DateTime
+  endDate           DateTime
+  registrationOpen  Boolean            @default(false)
+  sections          Section[]
+  enrollments       CourseEnrollment[]
+  studentFees       StudentFee[]
+
+  @@map("semester")
+}

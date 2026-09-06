@@ -1,0 +1,13 @@
+model Program {
+  id           String     @id @default(uuid())
+  name         String     // e.g., "Bachelor of Science in Computer Science"
+  code         String     @unique // e.g., "BSCS"
+  durationYrs  Int
+  totalCredits Int
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+  students     Student[]
+  courses      Course[]   @relation("ProgramCourses")
+
+  @@map("program")
+}

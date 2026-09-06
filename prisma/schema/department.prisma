@@ -1,0 +1,11 @@
+model Department {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  code        String       @unique // e.g., "CSE", "EEE"
+  programs    Program[]
+  courses     Course[]
+  instructors Instructor[]
+  students    Student[]
+
+  @@map("department")
+}
