@@ -21,6 +21,7 @@ import { redisClient } from "../../lib/redis";
 import { transpoter } from "../../lib/nodemailer";
 import ejs from "ejs";
 import { AuthProvider, Role } from "../../../generated/prisma/enums";
+import { connect } from "http2";
 
 // Renamed and Aligned to handle Student registration
 const registerStudent = async (payload: IRegisterStudentPayload) => {
@@ -108,6 +109,13 @@ const verifyStudentEmail = async (payload: IVerifyEmailPayload) => {
 
 	const studentPayload: IRegisterStudentPayload = JSON.parse(redisStudentData);
 
+	const studentId = studentPayload?.student?.studentId || `STU-${Date.now()}`;
+	const departmentId = studentPayload?.student?.departmentId || "";
+	const programId = studentPayload?.student?.programId || "";
+	const enrollmentDate = studentPayload?.student?.enrollmentDate 
+  ? new Date(studentPayload.student.enrollmentDate) 
+  : new Date();
+
 	// Safe transactional create mirroring the University Prisma configuration rules
 	const createdUser = await prisma.user.create({
 		data: {
@@ -120,10 +128,22 @@ const verifyStudentEmail = async (payload: IVerifyEmailPayload) => {
 				create: {
 					name: studentPayload.name,
 					email: studentPayload.email,
-					// studentId: studentPayload.student.studentId, // Institutional ID e.g., "2026-0001"
-					// enrollmentDate: new Date(),
-					// departmentId: studentPayload.student.departmentId,
-					// programId: studentPayload.student.programId,
+					studentId: studentId, // Institutional ID e.g., "2026-0001"
+					enrollmentDate: enrollmentDate,
+					...(departmentId && {
+						department:{
+							connect:{
+								id: departmentId
+							}
+						}
+					}),
+					...(programId && {
+						program:{
+							connect:{
+								id: programId
+							}
+						}
+					})
 				},
 			},
 		},
@@ -303,7 +323,7 @@ const refreshToken = async (token: string) => {
 };
 
 // Modified: Completely mapped, safe processing paths for Google Login flow tracking
-const googleLogin = async (payload: IGoogleLoginPayload) => {
+const googleLogin = async (payload: IGoogleLoginPayload) => { 
 	let googleIdTokenPayload: TokenPayload | null | undefined = null;
 
 	try {
@@ -374,7 +394,7 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 					student: {
 						create: {
 							name: googleIdTokenPayload.name,
-							email: googleIdTokenPayload.name,
+							email: googleIdTokenPayload.email,
 							
 						},
 					},

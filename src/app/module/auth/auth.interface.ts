@@ -16,7 +16,8 @@ export interface IRegisterStudentPayload {
 	student: {
 		studentId : string;      // e.g., "2026-0001"
 		departmentId : string;   // UUID string linking to Department
-		programId : string;      // UUID string linking to Program
+		programId : string; 
+		enrollmentDate: string      // UUID string linking to Program
 	};
 }
 
