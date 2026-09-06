@@ -5,6 +5,19 @@ import config from "../config";
 import { prisma } from "../lib/prisma";
 import { catchAsync } from "../utils/catchAsync";
 import { jwtUtils } from "../utils/jwt";
+import AppError from "../utils/AppError";
+import httpStatus from "http-status"
+
+
+export interface RequstUser {
+	
+	email: string;
+	name: string;
+	userId: string;
+	role: Role;
+		
+}
+
 
 declare global {
 	namespace Express {
@@ -44,19 +57,19 @@ export const auth = (...requiredRoles: Role[]) => {
 		const { email, name, userId, role } = verifiedToken.data as JwtPayload;
 
 		if (requiredRoles.length && !requiredRoles.includes(role)) {
-			throw new Error(
+			throw new AppError(
+				httpStatus.FORBIDDEN,
 				"Forbidden. You don't have permission to access this resource.",
 			);
 		}
 
+
 		const user = await prisma.user.findUnique({
 			where: {
 				id: userId,
-				email,
-				name,
-				role,
+				email: email,
 			},
-		});
+		})
 
 		if (!user) {
 			throw new Error("User not found. Please log in again.");

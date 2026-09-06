@@ -6,6 +6,14 @@ model StudentFee {
   paidAt      DateTime?
   description String    // e.g., "Tuition Fee Fall 2026"
   studentId   String
+  currency String  @default("BDT")
+
+  paymentGetway         String @default("bkash")
+  merchantInvoiceNumber String @unique // appointment id
+
+  bkashPaymentId String? @unique
+  bkashTrxId     String?
+  payerReference String?
   student     Student   @relation(fields: [studentId], references: [id])
   semesterId  String
   semester    Semester  @relation(fields: [semesterId], references: [id])

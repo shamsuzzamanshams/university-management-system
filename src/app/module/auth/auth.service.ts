@@ -22,6 +22,8 @@ import { transpoter } from "../../lib/nodemailer";
 import ejs from "ejs";
 import { AuthProvider, Role } from "../../../generated/prisma/enums";
 import { connect } from "http2";
+import AppError from "../../utils/AppError";
+import httpStatus from "http-status";
 
 // Renamed and Aligned to handle Student registration
 const registerStudent = async (payload: IRegisterStudentPayload) => {
@@ -121,9 +123,11 @@ const verifyStudentEmail = async (payload: IVerifyEmailPayload) => {
 		data: {
 			name: studentPayload.name,
 			email: studentPayload.email,
-			// passwordHash: studentPayload.password,
+			password: studentPayload.password,
 			role: Role.STUDENT,
 			isActive: true,
+			emailVerified: true,
+			authProvider: AuthProvider.CREDENTIAL,
 			student: {
 				create: {
 					name: studentPayload.name,
@@ -200,15 +204,26 @@ const verifyStudentEmail = async (payload: IVerifyEmailPayload) => {
 
 const loginUser = async (payload: ILoginUserPayload) => {
 	const { password } = payload;
-	const email = payload.email.trim().toLowerCase();
+	// const email = payload.email.trim().toLowerCase();
 
 	const user = await prisma.user.findUnique({
-		where: { email },
+		where: { email: payload.email },
 	});
 
 	if (!user) {
 		throw new Error("User not found");
 	}
+
+	if (user.password === null && user.googleId !== null) {
+		throw new AppError(
+			httpStatus.CONFLICT,
+			"User Already Has Account Registered With Google. Try To Login With Google",
+		);
+	}
+
+// 	 if (user.authProvider === "GOOGLE" || user.authProvider === AuthProvider.GOOGLE) {
+//     throw new Error("User account registered via social provider. Try to login with Google.");
+//   }
 
 	if (!user.isActive) {
 		throw new Error("User account is inactive");
@@ -383,6 +398,9 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 				},
 			});
 		} else {
+			const customStudentId = payload.student?.studentId || `STU-${Date.now()}`;
+			const departmentId = payload.student?.departmentId || "";
+			const programId = payload.student?.programId || "";
 			user = await prisma.user.create({
 				data: {
 					name: googleIdTokenPayload.name,
@@ -395,6 +413,22 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 						create: {
 							name: googleIdTokenPayload.name,
 							email: googleIdTokenPayload.email,
+							studentId: customStudentId,
+							...(departmentId && {
+								department:{
+									connect:{
+										id: departmentId
+							}
+						}
+					}),
+							...(programId && {
+								program:{
+									connect:{
+										id: programId
+							}
+						}
+					})
+
 							
 						},
 					},
@@ -405,7 +439,7 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 				}
 			});
 
-			const templatePath = path.join(process.cwd(), "src/app/templates/patient-welcome-email.ejs")
+			const templatePath = path.join(process.cwd(), "src/app/templates/student-welcome-email.ejs")
 
 			const templateData = {
 				name: user.name

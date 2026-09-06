@@ -36,6 +36,11 @@ export interface IRequestUser {
 
 export interface IGoogleLoginPayload {
 	idToken: string;
+	student?: {
+		studentId?: string;
+		departmentId?: string;
+		programId?: string;
+	};
 }
 
 export interface IForgotPasswordPayload {
