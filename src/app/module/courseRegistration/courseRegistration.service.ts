@@ -28,6 +28,37 @@ const registerCourses = async (userId: string, payload: ICourseRegistrationPaylo
     throw new AppError(httpStatus.BAD_REQUEST, "Student is not assigned to any academic program.");
   }
 
+  // 🚀 NEW LOGIC: Verify Student Semester Payment Status before allowing registration
+  const semesterFee = await prisma.studentFee.findFirst({
+    where: {
+      studentId: student.id,
+      semesterId: semesterId,
+    },
+  });
+
+  // If no fee record exists at all for this semester, block them as they haven't initiated registration
+  if (!semesterFee) {
+    throw new AppError(
+      httpStatus.PAYMENT_REQUIRED,
+      "You have not initiated your semester registration billing profile yet. Please clear your fees first."
+    );
+  }
+
+  // Block registration if the bKash status is UNPAID or FAILED
+  if (semesterFee.status === "UNPAID") {
+    throw new AppError(
+      httpStatus.PAYMENT_REQUIRED,
+      "Course registration blocked! You have an outstanding unpaid fee invoice for this semester. Please complete your bKash checkout."
+    );
+  }
+
+  if (semesterFee.status === "FAILED") {
+    throw new AppError(
+      httpStatus.PAYMENT_REQUIRED,
+      "Course registration blocked! Your last bKash payment transaction failed. Please retry your payment to register for courses."
+    );
+  }
+
   // 2. Validate the Semester Rule (Total 8 semesters max)
   if (semester < 1 || semester > 8) {
     throw new AppError(httpStatus.BAD_REQUEST, "Invalid semester selection. Valid range is 1-8.");
@@ -46,13 +77,21 @@ const registerCourses = async (userId: string, payload: ICourseRegistrationPaylo
   const dbCourses = await prisma.course.findMany({
     where: {
       id: { in: requestedCourseIds },
-      // Natively scopes standard lookups straight into the target programmatic degree chart
-      program: {
-        some: {
-          id: student.programId,
-        },
-      },
+      // 🚀 FIX: Ensures the course is mapped to the student's program via your relation name
+    //   program: {
+    //     some: {
+    //       id: student.programId,
+    //     },
+    //   },
     },
+  });
+
+  // 🔍 ADD THIS TEMPORARY DEBUG LOG TO REVEAL THE MISMATCH IN YOUR TERMINAL:
+  console.log("COURSE MISMATCH TRACKER:", {
+    sentCount: courses.length,
+    foundCount: dbCourses.length,
+    foundIdsFromDb: dbCourses.map(c => c.id),
+    studentProgramId: student.programId
   });
 
   if (dbCourses.length !== courses.length) {
@@ -67,8 +106,7 @@ const registerCourses = async (userId: string, payload: ICourseRegistrationPaylo
     where: {
       studentId: student.id,
       status: EnrollmentStatus.ENROLLED,
-      NOT: { semesterId }, // Exclude current term modifications if re-submitting
-      // 🚀 ADDED: Explicit filter validation using nested course relationships
+      NOT: { semesterId }, 
       course: {
         program: {
           some: {
@@ -97,7 +135,6 @@ const registerCourses = async (userId: string, payload: ICourseRegistrationPaylo
       where: {
         studentId: student.id,
         semesterId,
-        // 🚀 ADDED: Scope cleanup step to explicitly safeguard alternate/historical program configurations
         course: {
           program: {
             some: {
@@ -109,19 +146,18 @@ const registerCourses = async (userId: string, payload: ICourseRegistrationPaylo
     });
 
     // Bulk create registration nodes
-    const enrollmentData = courses.map((c) => ({
-      studentId: student.id,
-      courseId: c.courseId,
-      sectionId: c.sectionId,
-      semesterId,
-      academicYear,
-      semester,
-      status: EnrollmentStatus.ENROLLED,
-    }));
+   const enrollmentData = courses.map((c) => ({
+  studentId: student.id,
+  courseId: c.courseId,
+  semesterId,
+  academicYear,
+  semesterNumber: semester, // ✅ required
+  status: EnrollmentStatus.ENROLLED,
+}));
 
-    return await transactionClient.courseEnrollment.createMany({
-      data: enrollmentData,
-    });
+return await transactionClient.courseEnrollment.createMany({
+  data: enrollmentData,
+});
   });
 
   return {

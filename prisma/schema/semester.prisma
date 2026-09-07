@@ -6,7 +6,6 @@ model Semester {
   endDate          DateTime
   registrationOpen Boolean            @default(false)
   enrollments      CourseEnrollment[]
-  sections         Section[]
   studentFees      StudentFee[]
 
   @@map("semester")

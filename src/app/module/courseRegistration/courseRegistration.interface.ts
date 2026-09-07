@@ -1,6 +1,6 @@
 export interface ISelectedCoursePayload {
   courseId: string;
-  sectionId: string;
+  // sectionId: string;
 }
 
 export interface ICourseRegistrationPayload {

@@ -1,17 +1,15 @@
 model Course {
-  id           String     @id @default(uuid())
-  code         String     @unique
-  title        String
-  credits      Int
-  description  String?
-  departmentId String
-  
-  department   Department @relation(fields: [departmentId], references: [id])
-  sections     Section[]
-  course_A     Course[]   @relation("CoursePrerequisites")
-  course_B     Course[]   @relation("CoursePrerequisites")
-  program      Program[]  @relation("ProgramCourses")
-  courseEnrollment  CourseEnrollment?
+  id               String            @id @default(uuid())
+  code             String            @unique
+  title            String
+  credits          Int
+  description      String?
+  departmentId     String
+  courseEnrollment CourseEnrollment[]
+  department       Department        @relation(fields: [departmentId], references: [id])
+  course_A         Course[]          @relation("CoursePrerequisites")
+  course_B         Course[]          @relation("CoursePrerequisites")
+  program          Program[]         @relation("ProgramCourses")
 
   @@map("course")
 }

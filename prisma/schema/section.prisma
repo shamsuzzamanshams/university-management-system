@@ -1,19 +1,15 @@
 model Section {
-  id           String             @id @default(uuid())
+  id           String       @id @default(uuid())
   name         String
   capacity     Int
   roomNumber   String?
   schedule     String
-  courseId     String
   semesterId   String
   instructorId String
-  enrollments  CourseEnrollment[]
   attendances  Attendance[]
   exams        Exam[]
-  course       Course             @relation(fields: [courseId], references: [id])
-  instructor   Instructor         @relation(fields: [instructorId], references: [id])
-  semester     Semester           @relation(fields: [semesterId], references: [id])
+  instructor   Instructor   @relation(fields: [instructorId], references: [id])
 
-  @@unique([courseId, semesterId, name])
+  @@unique([semesterId, name])
   @@map("section")
 }

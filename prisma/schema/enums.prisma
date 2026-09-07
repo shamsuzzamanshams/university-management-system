@@ -25,6 +25,7 @@ enum FeeStatus {
   PARTIALLY_PAID
   PAID
   OVERDUE
+  FAILED
 }
 
 enum AuthProvider {

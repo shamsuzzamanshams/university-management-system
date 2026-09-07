@@ -19,6 +19,8 @@ import { DepartmentRoutes } from "./app/module/department/department.route";
 import { ProgramRoutes } from "./app/module/program/program.route";
 import { CourseRegistrationRoutes } from "./app/module/courseRegistration/courseRegistration.route";
 import { StudentRoutes } from "./app/module/student/student.route";
+import { SemesterRoutes } from "./app/module/semester/semester.route";
+import { CourseRoutes } from "./app/module/course/course.route";
 
 const app: Application = express();
 
@@ -39,8 +41,10 @@ app.use(cookieParser());
 app.use("/api/v1/auth", AuthRoutes);
 app.use("/api/v1/department", DepartmentRoutes);
 app.use("/api/v1/program", ProgramRoutes);
+app.use("/api/v1/course", CourseRoutes);
 app.use("/api/v1/courseRegistration", CourseRegistrationRoutes);
 app.use("/api/v1/student", StudentRoutes);
+app.use("/api/v1/semester", SemesterRoutes);
 app.use("/api/v1/payment", PaymentRoutes);
 
 

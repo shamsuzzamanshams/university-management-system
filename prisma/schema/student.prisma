@@ -5,9 +5,9 @@ model Student {
   enrollmentDate DateTime?
   departmentId   String?
   programId      String?
-  profilePhoto   String?
   email          String             @unique
   name           String
+  profilePhoto   String?
   enrollments    CourseEnrollment[]
   examResults    ExamResult[]
   academicResult AcademicResult[]

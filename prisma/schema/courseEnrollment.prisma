@@ -1,17 +1,13 @@
 model CourseEnrollment {
-  id         String           @id @default(uuid())
-  studentId  String
-  sectionId  String
-  semesterId String
-  academicYear Int
-  status     EnrollmentStatus @default(ENROLLED)
-  enrolledAt DateTime         @default(now())
-  section    Section          @relation(fields: [sectionId], references: [id])
-  semester   Semester         @relation(fields: [semesterId], references: [id])
-  student    Student          @relation(fields: [studentId], references: [id])
-  courseId   String           @unique
-  course     Course           @relation(fields: [courseId], references: [id])
+  id             String @id @default(uuid())
+  studentId      String
+  courseId       String
+  semesterId     String
+  academicYear   Int
+  semesterNumber Int
+  status         EnrollmentStatus
 
-  @@unique([studentId, sectionId])
-  @@map("CourseEnrollment")
+  student  Student  @relation(fields: [studentId], references: [id])
+  course   Course   @relation(fields: [courseId], references: [id])
+  semester Semester @relation(fields: [semesterId], references: [id])
 }
