@@ -1,11 +1,11 @@
 model ExamResult {
-  id         String   @id @default(uuid())
+  id            String  @id @default(uuid())
   marksObtained Float
-  examId     String
-  exam       Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
-  studentId  String
-  student    Student  @relation(fields: [studentId], references: [id])
-  
-  @@map("ExamResult")
+  examId        String
+  studentId     String
+  exam          Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student       Student @relation(fields: [studentId], references: [id])
+
   @@unique([examId, studentId])
+  @@map("ExamResult")
 }

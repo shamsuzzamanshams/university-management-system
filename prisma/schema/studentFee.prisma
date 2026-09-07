@@ -1,22 +1,20 @@
 model StudentFee {
-  id          String    @id @default(uuid())
-  amount      Decimal   @db.Decimal(10, 2)
-  dueDate     DateTime
-  status      FeeStatus @default(UNPAID)
-  paidAt      DateTime?
-  description String    // e.g., "Tuition Fee Fall 2026"
-  studentId   String
-  currency String  @default("BDT")
-
-  paymentGetway         String @default("bkash")
-  merchantInvoiceNumber String @unique // appointment id
-
-  bkashPaymentId String? @unique
-  bkashTrxId     String?
-  payerReference String?
-  student     Student   @relation(fields: [studentId], references: [id])
-  semesterId  String
-  semester    Semester  @relation(fields: [semesterId], references: [id])
+  id                    String    @id @default(uuid())
+  amount                Decimal   @db.Decimal(10, 2)
+  dueDate               DateTime
+  status                FeeStatus @default(UNPAID)
+  paidAt                DateTime?
+  description           String
+  studentId             String
+  semesterId            String
+  bkashPaymentId        String?   @unique
+  bkashTrxId            String?
+  currency              String    @default("BDT")
+  merchantInvoiceNumber String    @unique
+  payerReference        String?
+  paymentGetway         String    @default("bkash")
+  semester              Semester  @relation(fields: [semesterId], references: [id])
+  student               Student   @relation(fields: [studentId], references: [id])
 
   @@map("studentFee")
 }

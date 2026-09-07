@@ -1,12 +1,11 @@
 model Instructor {
-  id           String    @id @default(uuid())
-  userId       String    @unique
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  employeeId   String    @unique // Institutional ID e.g., "FAC-009"
-  designation  String    // e.g., "Assistant Professor"
+  id           String     @id @default(uuid())
+  userId       String     @unique
+  employeeId   String     @unique
+  designation  String
   departmentId String
   department   Department @relation(fields: [departmentId], references: [id])
-  
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   sections     Section[]
 
   @@map("instructor")

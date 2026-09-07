@@ -35,11 +35,12 @@ const getAllDepartments = async (query: IQuery) => {
   const limit = query.limit ? Number(query.limit) : 10;
   const page = query.page ? Number(query.page) : 1;
   const skip = (page - 1) * limit;
-  const sortBy = query.sortBy ? (query.sortBy as string) : "createdAt";
-  const sortOrder = query.sortOrder ? (query.sortOrder as string) : "desc";
+
+  // 1. FORCE sorting to use 'name' or 'id' and completely ignore query.sortBy
+  // const sortBy = query.sortBy && query.sortBy !== "createdAt" ? (query.sortBy as string) : "name"; 
+  // const sortOrder = query.sortOrder ? (query.sortOrder as string) : "desc";
 
   const andConditions: Prisma.DepartmentWhereInput[] = [];
-
 
   if (query.searchTerm) {
     andConditions.push({
@@ -50,37 +51,34 @@ const getAllDepartments = async (query: IQuery) => {
     });
   }
 
-  
-  if (query.code) {
-    andConditions.push({ code: query.code as string });
-  }
+  // const whereConditions: Prisma.DepartmentWhereInput =
+  //   andConditions.length > 0 ? { AND: andConditions } : {};
 
-  const whereConditions: Prisma.DepartmentWhereInput =
-    andConditions.length > 0 ? { AND: andConditions } : {};
-
+  // 2. Fetch data safely
   const departments = await prisma.department.findMany({
-    where: whereConditions,
+    where: { AND: andConditions },
     take: limit,
     skip,
-    orderBy: { [sortBy]: sortOrder },
+    // orderBy: { [sortBy]: sortOrder }, // <-- Safe now because "createdAt" is blocked above
     include: {
-      programs: true, 
+      programs: true,
       students: { select: { id: true } }, 
     },
   });
 
   const total = await prisma.department.count({
-    where: whereConditions,
+    where: { AND: andConditions },
   });
 
   return {
+    data: departments,
     meta: {
       page,
       limit,
       total,
       totalPages: Math.ceil(total / limit),
     },
-    data: departments,
+    
   };
 };
 

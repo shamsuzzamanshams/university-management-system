@@ -1,14 +1,14 @@
 model CourseEnrollment {
   id         String           @id @default(uuid())
   studentId  String
-  student    Student          @relation(fields: [studentId], references: [id])
   sectionId  String
-  section    Section          @relation(fields: [sectionId], references: [id])
   semesterId String
-  semester   Semester         @relation(fields: [semesterId], references: [id])
   status     EnrollmentStatus @default(ENROLLED)
   enrolledAt DateTime         @default(now())
+  section    Section          @relation(fields: [sectionId], references: [id])
+  semester   Semester         @relation(fields: [semesterId], references: [id])
+  student    Student          @relation(fields: [studentId], references: [id])
 
+  @@unique([studentId, sectionId])
   @@map("CourseEnrollment")
-  @@unique([studentId, sectionId]) // Prevent duplicate registration in the same section
 }

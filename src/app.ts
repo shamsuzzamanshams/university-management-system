@@ -16,6 +16,7 @@ import { redisClient } from "./app/lib/redis";
 import crypto from "crypto";
 import { PaymentRoutes } from "./app/module/payment/payment.route";
 import { DepartmentRoutes } from "./app/module/department/department.route";
+import { ProgramRoutes } from "./app/module/program/program.route";
 
 const app: Application = express();
 
@@ -35,6 +36,7 @@ app.use(cookieParser());
 
 app.use("/api/v1/auth", AuthRoutes);
 app.use("/api/v1/department", DepartmentRoutes);
+app.use("/api/v1/program", ProgramRoutes);
 app.use("/api/v1/payment", PaymentRoutes);
 
 

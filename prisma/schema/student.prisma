@@ -1,20 +1,19 @@
 model Student {
   id             String             @id @default(uuid())
-  name           String
-  email          String             @unique
   userId         String             @unique
-  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  studentId      String?             @unique // Institutional ID e.g., "2026-0001"
+  studentId      String?            @unique
   enrollmentDate DateTime?
   departmentId   String?
-  department     Department?         @relation(fields: [departmentId], references: [id])
   programId      String?
-  program        Program?            @relation(fields: [programId], references: [id])
-  
+  email          String             @unique
+  name           String
   enrollments    CourseEnrollment[]
-  attendances    Attendance[]
   examResults    ExamResult[]
   academicResult AcademicResult[]
+  attendances    Attendance[]
+  department     Department?        @relation(fields: [departmentId], references: [id])
+  program        Program?           @relation(fields: [programId], references: [id])
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   fees           StudentFee[]
 
   @@map("student")

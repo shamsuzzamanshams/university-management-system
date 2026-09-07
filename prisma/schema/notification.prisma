@@ -4,8 +4,8 @@ model Notification {
   message   String
   isRead    Boolean  @default(false)
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notification")
 }
