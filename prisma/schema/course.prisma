@@ -5,11 +5,13 @@ model Course {
   credits      Int
   description  String?
   departmentId String
+  
   department   Department @relation(fields: [departmentId], references: [id])
   sections     Section[]
   course_A     Course[]   @relation("CoursePrerequisites")
   course_B     Course[]   @relation("CoursePrerequisites")
-  programs     Program[]  @relation("ProgramCourses")
+  program      Program[]  @relation("ProgramCourses")
+  courseEnrollment  CourseEnrollment?
 
   @@map("course")
 }

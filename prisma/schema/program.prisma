@@ -7,11 +7,7 @@ model Program {
   departmentId String
   department   Department @relation(fields: [departmentId], references: [id])
   students     Student[]
-  courses      Course[]   @relation("ProgramCourses")
-
-
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt()
+  course       Course[]   @relation("ProgramCourses")
 
   @@map("program")
 }

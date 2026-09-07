@@ -1,0 +1,12 @@
+import config from "../config";
+import { v2 as Cloudinary } from "cloudinary";
+
+// Configure Cloudinary (use your own cloud_name, api_key, and api_secret)
+
+Cloudinary.config({
+    cloud_name: config.cloudinary_cloud_name?.trim(),
+    api_key: config.cloudinary_api_key?.trim(),
+    api_secret: config.cloudinary_api_secret?.trim()
+});
+
+export const cloudinary = Cloudinary
