@@ -15,221 +15,224 @@ import { transpoter } from "../../lib/nodemailer";
 import { IQuery } from "../../interfaces";
 import { Prisma } from "../../../generated/prisma/client";
 
-const applyAsInstructor = async (
-	payload: any,
-	resume: Express.Multer.File | null,
-	additionalFiles: Express.Multer.File[],
+const applyAsInstructor = async (payload: any) => {
+  if (!payload?.user) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "User information is required",
+    );
+  }
+
+  if (!payload?.instructor) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Instructor information is required",
+    );
+  }
+
+  if (!payload.instructor.designation) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Instructor designation is required",
+    );
+  }
+
+  if (!payload.instructor.departmentId) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Department is required",
+    );
+  }
+
+  const isUserExists = await prisma.user.findUnique({
+    where: {
+      email: payload.user.email,
+    },
+  });
+
+  if (isUserExists) {
+    throw new AppError(
+      httpStatus.CONFLICT,
+      "User already exists with this email",
+    );
+  }
+
+  // Generate OTP
+  const otp = Math.floor(
+    100000 + Math.random() * 900000,
+  ).toString();
+
+  // Save application temporarily in Redis
+  await redisClient.set(
+    `instructor-application:${payload.user.email}`,
+    JSON.stringify(payload),
+    {
+      EX: 300,
+    },
+  );
+
+  // Save OTP separately
+  await redisClient.set(
+    `instructor-otp:${payload.user.email}`,
+    otp,
+    {
+      EX: 300,
+    },
+  );
+
+  // Send OTP
+  await transpoter.sendMail({
+    to: payload.user.email,
+    subject: "Verify Your Instructor Application",
+    html: `
+      <h2>Instructor Application Verification</h2>
+      <p>Your verification OTP is:</p>
+
+      <h1>${otp}</h1>
+
+      <p>This OTP will expire in 5 minutes.</p>
+      <p>If you did not request this application, please ignore this email.</p>
+    `,
+  });
+
+  return {
+    email: payload.user.email,
+    message: "OTP sent to your email",
+  };
+};
+
+
+const verifyInstructorOtp = async (
+  email: string,
+  otp: string,
 ) => {
-	const isUserExists = await prisma.user.findUnique({
-		where: {
-			email: payload.user.email,
-		},
-	});
-	if (isUserExists) {
-		throw new AppError(httpStatus.CONFLICT, "User already exist with this email");
-	}
+  const storedOtp = await redisClient.get(
+    `instructor-otp:${email}`,
+  );
 
-	const resumeUploadResult = await new Promise<UploadApiResponse>(
-		(resolve, reject) => {
-			cloudinary.uploader
-				.upload_stream(
-					{
-						resource_type: "auto",
-					},
-					async (error, result) => {
-						if (error) {
-							return reject(error);
-						}
+  if (!storedOtp) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "OTP expired or not found",
+    );
+  }
 
-					if (!result) {
-						return reject(new AppError(httpStatus.BAD_GATEWAY, "No result return from cloudinary"));
-					}
+  if (storedOtp !== otp) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Invalid OTP",
+    );
+  }
 
-						resolve(result);
-						console.log(result, "result");
-					},
-				)
-				.end(resume?.buffer);
-		},
-	);
-	const additionalFilesUploadResults = await Promise.all(
-		additionalFiles.map((file) => {
-			return new Promise<UploadApiResponse>((resolve, reject) => {
-				cloudinary.uploader
-					.upload_stream(
-						{
-							resource_type: "auto",
-						},
+  const applicationData = await redisClient.get(
+    `instructor-application:${email}`,
+  );
 
-						async (error, result) => {
-							if (error) {
-								return reject(error);
-							}
+  if (!applicationData) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Instructor application expired",
+    );
+  }
 
-						if (!result) {
-							return reject(new AppError(httpStatus.BAD_GATEWAY, "No result returned from Cloudinary"));
-						}
+  const payload = JSON.parse(applicationData);
 
-							resolve(result);
-						},
-					)
-					.end(file.buffer);
-			});
-		}),
-	);
+  const randomInstructorPassword = Math.random()
+    .toString(36)
+    .slice(-8);
 
-	const randomDoctorPassword = Math.random().toString(36).slice(-8);
+  const hashedPassword = await bcrypt.hash(
+    randomInstructorPassword,
+    Number(config.bcrypt_salt_rounds),
+  );
 
-	const hashedPassword = await bcrypt.hash(
-		randomDoctorPassword,
-		Number(config.bcrypt_salt_rounds),
-	);
-	const doctorApplication = await prisma.user.create({
-		data: {
-			...payload.user,
-			password: hashedPassword,
-			role: Role.INSTRUCTOR,
-			needPasswordChange: true,
-			doctor: {
-				create: {
-					name: payload.user.name,
-					email: payload.user.email,
-					...payload.doctor,
-					resume: resumeUploadResult.secure_url,
-					resumePublicId: resumeUploadResult.public_id,
-					additionalFiles: additionalFilesUploadResults.map((file) => ({
-						url: file.secure_url,
-						publicId: file.public_id,
-					})),
-				},
-			},
-		},
-		include: {
-			instructor: true
-		},
-	});
-	return doctorApplication;
+  const instructorApplication =
+    await prisma.user.create({
+      data: {
+        ...payload.user,
+        password: hashedPassword,
+        role: Role.INSTRUCTOR,
+
+		emailVerified: true,
+
+        instructor: {
+          create: {
+            designation:
+              payload.instructor.designation,
+            name: payload.user.name,
+            email: payload.user.email,
+
+            department: {
+              connect: {
+                id: payload.instructor.departmentId,
+              },
+            },
+          },
+        },
+      },
+
+      omit: {
+        password: true,
+      },
+    });
+
+  // Delete OTP/application after successful verification
+  await redisClient.del(`instructor-otp:${email}`);
+  await redisClient.del(`instructor-application:${email}`);
+
+  return instructorApplication;
 };
 
-const verifyInstructorEmail = async (payload : IVerifyDoctorEmailPayload) => {
-	const otp = payload.otp;
-	const email = payload.email.trim().toLowerCase();
 
-	const existingUser = await prisma.user.findUnique({
-		where: { email, role: Role.INSTRUCTOR },
-	});
+const approveInstructor = async (instructorId: string) => {
+  if (!instructorId) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Instructor ID is required",
+    );
+  }
 
-	if (!existingUser) {
-		throw new AppError(
-			httpStatus.NOT_FOUND,
-			"Teacher Application Not Found. Please Apply Again.",
-		);
-	}
+  const instructor = await prisma.instructor.findUnique({
+    where: {
+      id: instructorId,
+    },
+    include: {
+      user: true,
+    },
+  });
 
-	if (existingUser.emailVerified) {
-		throw new AppError(httpStatus.CONFLICT, "Email Already Verified");
-	}
+  if (!instructor) {
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      "Instructor not found",
+    );
+  }
 
-	const otpKey = `Teacher-application-otp:${email}`;
+  if (instructor.verificationStatus === "APPROVED") {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Instructor is already approved",
+    );
+  }
 
-	const redisOtp = await redisClient.get(otpKey);
+  const result = await prisma.instructor.update({
+    where: {
+      id: instructorId,
+    },
+    data: {
+      verificationStatus: "APPROVED",
+    },
+    include: {
+      user: {
+        omit: {
+          password: true,
+        },
+      },
+    },
+  });
 
-	if (!redisOtp) {
-		throw new AppError(
-			httpStatus.BAD_REQUEST,
-			"OTP Expired. Your Application Window Has Closed, Please Apply Again.",
-		);
-	}
-
-	if (redisOtp !== otp) {
-		throw new AppError(httpStatus.BAD_REQUEST, "OTP Does Not Match");
-	}
-
-	await redisClient.del(otpKey);
-
-	const verifiedUser = await prisma.user.update({
-		where: { id: existingUser.id },
-		data: { emailVerified: true },
-		omit: { password: true },
-		include: { instructor: true },
-	});
-
-	return verifiedUser
-
+  return result;
 };
-
-const approveInstructor = async (payload : IApproveInstructorPayload, reviewer : RequstUser) => {
-	const { instructorId, verificationStatus } = payload;
-
-	const existingInstructor = await prisma.instructor.findUnique({
-		where: { id: instructorId },
-		include: { user: true },
-	});
-
-	if (!existingInstructor) {
-		throw new AppError(httpStatus.NOT_FOUND, "Doctor Application Not Found");
-	}
-
-
-	if (!existingInstructor.user.emailVerified) {
-		throw new AppError(
-			httpStatus.BAD_REQUEST,
-			"Doctor Has Not Verified Their Email Yet. Application Cannot Be Reviewed.",
-		);
-	}
-
-	if (existingInstructor.verificationStatus !== InstructorVerificationStatus.PENDING) {
-		throw new AppError(
-			httpStatus.CONFLICT,
-			`Doctor Application Has Already Been ${existingInstructor.verificationStatus.toLowerCase()}`,
-		);
-	}
-
-	
-
-	const updatedInstructor = await prisma.instructor.update({
-		where: { id: instructorId },
-		data: {
-			verificationStatus,
-			rejectionReason:
-				verificationStatus === InstructorVerificationStatus.REJECTED,
-					
-			reviewedBy: reviewer.userId,
-			reviewedAt: new Date(),
-		},
-	});
-
-	const isApproved = verificationStatus === InstructorVerificationStatus.APPROVED;
-
-	const tempatePath = path.join(
-		process.cwd(),
-		`src/app/templates/${isApproved
-			? "instructor-application-approved.ejs"
-			: "instructor-application-rejected.ejs"
-		}`,
-	);
-
-	const templateData = {
-		name: updatedInstructor.name,
-	};
-
-
-	const html = await ejs.renderFile(tempatePath, templateData);
-
-	await transpoter.sendMail({
-		from: config.email_sender,
-		to: updatedInstructor.email,
-		subject: isApproved
-			? "Your Doctor Application Has Been Approved"
-			: "Your Doctor Application Has Been Rejected",
-		html,
-	});
-
-	return updatedInstructor
-
-
-
-}
 
 const getAllInstructor= async (query: IQuery) => {
 
@@ -331,7 +334,7 @@ const updateInstructorProfile = async (payload : IUpdateInstructorProfilePayload
 
 export const instructorSevice = {
     applyAsInstructor,
-    verifyInstructorEmail,
+    verifyInstructorOtp,
     approveInstructor,
     getAllInstructor,
     updateInstructorProfile

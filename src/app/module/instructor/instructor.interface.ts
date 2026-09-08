@@ -2,8 +2,6 @@ import { InstructorVerificationStatus } from "../../../generated/prisma/enums";
 
 export interface IInstructorPayload {
   id: string;
-  userId: string;
-  employeeId: string;
   designation: string;
   departmentId: string;
 }

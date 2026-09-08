@@ -13,33 +13,22 @@ const router = Router();
 router.post(
 	"/apply-as-instructor",
 	// validateRequest(UserValidation.ResetPasswordZodSchema),
-	upload.fields([
-		{
-			name: "resume",
-			maxCount: 1,
-		},
-
-		{
-			name: "additionalFiles",
-			maxCount: 10,
-		},
-	]),
 	instructorController.applyAsInstructor,
 );
 router.post(
 	"/apply-as-doctor/verify-email",
-	instructorController.verifyInstructorEmail,
+	instructorController.verifyInstructorOtp,
 );
 router.post(
 	"/approve-doctor",
 	auth(Role.DEPARTMENT_ADMIN, Role.SUPER_ADMIN),
 	instructorController.approveInstructor,
 );
-router.get(
-	"/all-doctors",
-	auth(Role.DEPARTMENT_ADMIN, Role.SUPER_ADMIN),
-	instructorController.getAllInstructor,
-);
+// router.get(
+// 	"/all-doctors",
+// 	auth(Role.DEPARTMENT_ADMIN, Role.SUPER_ADMIN),
+// 	instructorController.getAllInstructor,
+// );
 
 router.patch(
 	"/update-my-profile",

@@ -1,78 +1,76 @@
 import { Request, Response } from "express";
 import { catchAsync } from "../../utils/catchAsync";
-import { ApplyAsInstructorValidationZodSchema } from "./instructor.validation";
+import { applyAsInstructorSchema } from "./instructor.validation";
 import AppError from "../../utils/AppError";
 import httpStatus from "http-status";
 import { instructorSevice } from "./instructor.service";
 import { sendResponse } from "../../utils/sendResponse";
 
-const applyAsInstructor = catchAsync(async (req: Request, res: Response) => {
-	const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-	console.log({ files });
-	const resume = files?.["resume"] ? files["resume"][0] : null;
-	const additionalFiles = files?.["additionalFiles"] || [];
+const applyAsInstructor = catchAsync(async (req, res) => {
+  console.log("BODY:", req.body);
+  console.log("FILES:", req.files);
 
-	const zodValidationResult = ApplyAsInstructorValidationZodSchema.safeParse(
-		JSON.parse(req.body.data),
-	);
+  const payload = req.body;
 
-	if (!zodValidationResult.success) {
-		throw new AppError(httpStatus.BAD_REQUEST, zodValidationResult.error.issues[0].message);
-	}
+  const validatedData = applyAsInstructorSchema.parse(payload);
 
-	const payload = zodValidationResult.data;
+  const result = await instructorSevice.applyAsInstructor(
+    validatedData,
+  );
 
-	const result = await instructorSevice.applyAsInstructor(
-		payload,
-		resume,
-		additionalFiles,
-	);
-	sendResponse(res, {
-		statusCode: httpStatus.OK,
-		success: true,
-		message: "Applied As Doctor Successfuly",
-		data: result,
-	});
+  sendResponse(res, {
+    statusCode: httpStatus.CREATED,
+    success: true,
+    message: "Instructor application submitted successfully",
+    data: result,
+  });
 });
 
-const verifyInstructorEmail = catchAsync(async (req: Request, res: Response) => {
-	
-	const payload = req.body;
+const verifyInstructorOtp = catchAsync(async (req, res) => {
+  const { email, otp } = req.body;
 
-	const result = await instructorSevice.verifyInstructorEmail(payload)
-	sendResponse(res, {
-		statusCode: httpStatus.OK,
-		success: true,
-		message: "Instructor Email Verified Successfully",
-		data: result,
-	});
+  if (!email || !otp) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Email and OTP are required",
+    );
+  }
+
+  const result = await instructorSevice.verifyInstructorOtp(
+    email,
+    otp,
+  );
+
+  sendResponse(res, {
+    statusCode: httpStatus.CREATED,
+    success: true,
+    message: "Instructor application verified successfully",
+    data: result,
+  });
 });
 
-const approveInstructor = catchAsync(async (req: Request, res: Response) => {
-	
-	const payload = req.body;
-	const user = req.user!
+const approveInstructor = catchAsync(async (req, res) => {
+  const { instructorId } = req.body;
 
-	const result = await instructorSevice.approveInstructor(payload, user)
-	sendResponse(res, {
-		statusCode: httpStatus.OK,
-		success: true,
-		message: "Instructor Email Verified Successfully",
-		data: result,
-	});
-});
+  console.log("BODY:", req.body);
+  console.log("INSTRUCTOR ID:", instructorId);
 
-const getAllInstructor = catchAsync(async (req: Request, res: Response) => {
-	
+  if (!instructorId) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Instructor ID is required",
+    );
+  }
 
-	const {data, meta} = await instructorSevice.getAllInstructor(req.query)
-	sendResponse(res, {
-		statusCode: httpStatus.OK,
-		success: true,
-		message: "Instructor Retrieved Successfully",
-		data: data,
-		meta : meta,
-	});
+  const result =
+    await instructorSevice.approveInstructor(instructorId);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Instructor approved successfully",
+    data: result,
+  });
 });
 
 
@@ -93,8 +91,8 @@ const updateInstructorProfile = catchAsync(
 
 export const instructorController = {
     applyAsInstructor,
-    verifyInstructorEmail,
+    verifyInstructorOtp,
     approveInstructor,
-    getAllInstructor,
+    // getAllInstructor,
     updateInstructorProfile
 }

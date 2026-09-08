@@ -3,7 +3,7 @@ model Instructor {
   name         String
   email        String     @unique
   userId       String     @unique
-  employeeId   String     @unique
+  // employeeId   String     @unique
   designation  String
   departmentId String
   verificationStatus InstructorVerificationStatus @default(PENDING)
