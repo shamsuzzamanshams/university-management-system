@@ -15,9 +15,6 @@ export interface IUpdateSemesterPayload {
 }
 
 
-// =====================================================
-// PAYMENT INTERFACES
-// =====================================================
 
 export interface IInitializeRegistrationPayload {
   semesterId: string;

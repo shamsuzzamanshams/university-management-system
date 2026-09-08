@@ -1,9 +1,7 @@
 import { z } from "zod";
 
 
-// =====================================================
-// CREATE SEMESTER
-// =====================================================
+
 
 const createSemesterZodSchema = z.object({
   body: z.object({
@@ -31,9 +29,6 @@ const createSemesterZodSchema = z.object({
 });
 
 
-// =====================================================
-// UPDATE SEMESTER
-// =====================================================
 
 const updateSemesterZodSchema = z.object({
   body: z.object({
@@ -65,9 +60,6 @@ const updateSemesterZodSchema = z.object({
 });
 
 
-// =====================================================
-// INITIATE SEMESTER REGISTRATION
-// =====================================================
 
 const initiateSemesterRegistrationZodSchema = z.object({
   body: z.object({
@@ -89,9 +81,6 @@ const initiateSemesterRegistrationZodSchema = z.object({
 });
 
 
-// =====================================================
-// RETRY PAYMENT
-// =====================================================
 
 const payRegistrationFeeZodSchema = z.object({
   body: z.object({
@@ -102,9 +91,7 @@ const payRegistrationFeeZodSchema = z.object({
 });
 
 
-// =====================================================
-// EXPORT
-// =====================================================
+
 
 export const SemesterValidation = {
   createSemesterZodSchema,

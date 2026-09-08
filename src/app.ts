@@ -25,6 +25,7 @@ import { InstructorRoutes } from "./app/module/instructor/instructor.route";
 import { sectionRouter } from "./app/module/section/section.route";
 import { examRouter } from "./app/module/exam/exam.route";
 import { attendanceRouter } from "./app/module/Attendence/attendance.route";
+import { NotificationRoutes } from "./app/module/notification/notification.route";
 
 const app: Application = express();
 
@@ -54,6 +55,7 @@ app.use("/api/v1/instructor", InstructorRoutes);
 app.use("/api/v1/section", sectionRouter);
 app.use("/api/v1/exam", examRouter);
 app.use("/api/v1/attendance", attendanceRouter);
+app.use("/api/v1/notification", NotificationRoutes);
 
 
 // app.post("/zod",async (req: Request, res: Response, next: NextFunction) => {
@@ -73,14 +75,14 @@ app.use("/api/v1/attendance", attendanceRouter);
 
 // 	if(!result.success){
 // 		console.log(result.error);
-		
+
 // 	}
 // 	if(result.success){
 // 		console.log(result.data);
-		
+
 // 	}
 // 	console.log(result);
-	
+
 // 	res.status(httpStatus.OK).json({
 // 		success: true,
 // 		message: "Welcome to Healthcare System Management Backend",
@@ -88,15 +90,15 @@ app.use("/api/v1/attendance", attendanceRouter);
 // 	});
 // 	} catch (error) {
 // 		console.log(error);
-		
+
 // 		next(error)
 // 	}
-	
+
 // })
 
 // Basic route
 
-app.get("/test", async (req: Request, res: Response, next : NextFunction) => {
+app.get("/test", async (req: Request, res: Response, next: NextFunction) => {
 
 	try {
 
@@ -109,13 +111,13 @@ app.get("/test", async (req: Request, res: Response, next : NextFunction) => {
 		// 		value: 60
 		// 	}
 		// })
-		
+
 
 
 		res.status(httpStatus.OK).json({
 			success: true,
 			message: "Welcome to PH Healthcare System Backend",
-			data : ""
+			data: ""
 		});
 	} catch (error) {
 		console.log(error);

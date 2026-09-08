@@ -21,9 +21,7 @@ import { transpoter } from "../../lib/nodemailer";
 import PDFDocument from "pdfkit";
 
 
-// =====================================================
-// CREATE SEMESTER
-// =====================================================
+
 
 const createSemester = async (
 	payload: ICreateSemesterPayload
@@ -67,9 +65,6 @@ const createSemester = async (
 };
 
 
-// =====================================================
-// GET ALL SEMESTERS
-// =====================================================
 
 const getAllSemesters = async () => {
 	const semesters = await prisma.semester.findMany({
@@ -87,9 +82,6 @@ const getAllSemesters = async () => {
 };
 
 
-// =====================================================
-// GET SINGLE SEMESTER
-// =====================================================
 
 const getSingleSemester = async (
 	semesterId: string
@@ -116,9 +108,7 @@ const getSingleSemester = async (
 };
 
 
-// =====================================================
-// UPDATE SEMESTER
-// =====================================================
+
 
 const updateSemester = async (
 	semesterId: string,
@@ -192,9 +182,6 @@ const updateSemester = async (
 };
 
 
-// =====================================================
-// DELETE SEMESTER
-// =====================================================
 
 const deleteSemester = async (
 	semesterId: string
@@ -222,9 +209,7 @@ const deleteSemester = async (
 };
 
 
-// =====================================================
-// INITIATE SEMESTER REGISTRATION PAYMENT
-// =====================================================
+
 
 const initiateSemesterRegistration = async (
 	payload: IInitializeRegistrationPayload,
@@ -245,7 +230,7 @@ const initiateSemesterRegistration = async (
 
 	const result = await prisma.$transaction(async (tx) => {
 
-		// Find logged-in student's profile
+
 		const student = await tx.student.findUnique({
 			where: {
 				userId: user.userId,
@@ -259,7 +244,7 @@ const initiateSemesterRegistration = async (
 			);
 		}
 
-		// Find semester
+
 		const semester = await tx.semester.findUnique({
 			where: {
 				id: semesterId,
@@ -273,7 +258,7 @@ const initiateSemesterRegistration = async (
 			);
 		}
 
-		// Check registration
+
 		if (!semester.registrationOpen) {
 			throw new AppError(
 				httpStatus.BAD_REQUEST,
@@ -281,7 +266,7 @@ const initiateSemesterRegistration = async (
 			);
 		}
 
-		// Check existing fee
+
 		const existingFee = await tx.studentFee.findFirst({
 			where: {
 				studentId: student.id,
@@ -303,7 +288,7 @@ const initiateSemesterRegistration = async (
 			);
 		}
 
-		// Create invoice
+
 		const merchantInvoiceNumber =
 			`SEM-${semester.code}-${Date.now()}`;
 
@@ -336,7 +321,7 @@ const initiateSemesterRegistration = async (
 			},
 		});
 
-		// Get bKash token
+
 		const token = await getBkashToken();
 
 		if (!token) {
@@ -346,7 +331,6 @@ const initiateSemesterRegistration = async (
 			);
 		}
 
-		// Create bKash payment
 		const paymentResponse = await fetch(
 			`${config.bkash_base_url}/tokenized/checkout/create`,
 			{
@@ -418,9 +402,7 @@ const initiateSemesterRegistration = async (
 };
 
 
-// =====================================================
-// RETRY PAYMENT
-// =====================================================
+
 
 const paySemesterRegistrationFee = async (
 	payload: IPayRegistrationPayload,
@@ -447,7 +429,7 @@ const paySemesterRegistrationFee = async (
 		);
 	}
 
-	// Security check
+
 	if (
 		existingFee.student.userId !== user.userId
 	) {
@@ -569,9 +551,7 @@ const bookSemesterPaymentCallback = async (
 				);
 			}
 
-			// =================================================
-			// GET BKASH TOKEN
-			// =================================================
+
 
 			const bkashIdToken = await getBkashToken();
 
@@ -582,9 +562,6 @@ const bookSemesterPaymentCallback = async (
 				);
 			}
 
-			// =================================================
-			// EXECUTE BKASH PAYMENT
-			// =================================================
 
 			const executedPaymentResponse = await fetch(
 				`${config.bkash_base_url}/tokenized/checkout/execute`,
@@ -607,18 +584,14 @@ const bookSemesterPaymentCallback = async (
 			const executedPaymentResult =
 				await executedPaymentResponse.json();
 
-			// =================================================
-			// PAYMENT SUCCESS
-			// =================================================
+
 
 			if (
 				status === "success" &&
 				executedPaymentResponse.ok &&
 				executedPaymentResult?.statusCode === "0000"
 			) {
-				// -----------------------------------------------
-				// FIND STUDENT FEE
-				// -----------------------------------------------
+
 
 				const studentFee =
 					await tx.studentFee.findFirst({
@@ -646,9 +619,8 @@ const bookSemesterPaymentCallback = async (
 					);
 				}
 
-				// -----------------------------------------------
-				// PREVENT DUPLICATE PAYMENT PROCESSING
-				// -----------------------------------------------
+
+
 
 				if (studentFee.status === FeeStatus.PAID) {
 					return {
@@ -657,9 +629,7 @@ const bookSemesterPaymentCallback = async (
 					};
 				}
 
-				// -----------------------------------------------
-				// UPDATE FEE AS PAID
-				// -----------------------------------------------
+
 
 				const paidFee = await tx.studentFee.update({
 					where: {
@@ -681,9 +651,6 @@ const bookSemesterPaymentCallback = async (
 					},
 				});
 
-				// =================================================
-				// GENERATE PDF RECEIPT
-				// =================================================
 
 				const pdfBuffer =
 					await new Promise<Buffer>(
@@ -696,9 +663,7 @@ const bookSemesterPaymentCallback = async (
 
 							const pdfChunks: Buffer[] = [];
 
-							// -----------------------------------------
-							// PDF DATA
-							// -----------------------------------------
+
 
 							pdfDocument.on(
 								"data",
@@ -707,9 +672,6 @@ const bookSemesterPaymentCallback = async (
 								}
 							);
 
-							// -----------------------------------------
-							// PDF COMPLETE
-							// -----------------------------------------
 
 							pdfDocument.on(
 								"end",
@@ -720,9 +682,7 @@ const bookSemesterPaymentCallback = async (
 								}
 							);
 
-							// -----------------------------------------
-							// PDF ERROR
-							// -----------------------------------------
+
 
 							pdfDocument.on(
 								"error",
@@ -731,9 +691,6 @@ const bookSemesterPaymentCallback = async (
 								}
 							);
 
-							// =========================================
-							// HEADER
-							// =========================================
 
 							pdfDocument
 								.fontSize(20)
@@ -770,9 +727,7 @@ const bookSemesterPaymentCallback = async (
 
 							pdfDocument.moveDown(1.5);
 
-							// =========================================
-							// PAYMENT SUCCESS
-							// =========================================
+
 
 							pdfDocument
 								.fontSize(16)
@@ -786,9 +741,7 @@ const bookSemesterPaymentCallback = async (
 
 							pdfDocument.moveDown(2);
 
-							// =========================================
-							// STUDENT INFORMATION
-							// =========================================
+
 
 							pdfDocument
 								.fontSize(14)
@@ -824,9 +777,7 @@ const bookSemesterPaymentCallback = async (
 
 							pdfDocument.moveDown(1.5);
 
-							// =========================================
-							// SEMESTER INFORMATION
-							// =========================================
+
 
 							pdfDocument
 								.fontSize(14)
@@ -855,9 +806,7 @@ const bookSemesterPaymentCallback = async (
 
 							pdfDocument.moveDown(1.5);
 
-							// =========================================
-							// PAYMENT INFORMATION
-							// =========================================
+
 
 							pdfDocument
 								.fontSize(14)
@@ -896,9 +845,7 @@ const bookSemesterPaymentCallback = async (
 
 							pdfDocument.moveDown(2);
 
-							// =========================================
-							// FOOTER
-							// =========================================
+
 
 							pdfDocument
 								.fontSize(10)
@@ -930,17 +877,13 @@ const bookSemesterPaymentCallback = async (
 									}
 								);
 
-							// -----------------------------------------
-							// FINISH PDF
-							// -----------------------------------------
+
 
 							pdfDocument.end();
 						}
 					);
 
-				// =================================================
-				// SEND PDF RECEIPT TO STUDENT EMAIL
-				// =================================================
+
 
 				try {
 					await transpoter.sendMail({
@@ -1073,9 +1016,7 @@ University Management System
 					);
 				}
 
-				// ================================================
-				// SUCCESS REDIRECT
-				// ================================================
+
 
 				return {
 					redirectUrl:
@@ -1083,9 +1024,7 @@ University Management System
 				};
 			}
 
-			// =================================================
-			// PAYMENT FAILURE
-			// =================================================
+
 
 			if (status === "failure") {
 				await tx.studentFee.updateMany({
@@ -1107,9 +1046,7 @@ University Management System
 				};
 			}
 
-			// =================================================
-			// PAYMENT CANCELLED
-			// =================================================
+
 
 			if (status === "cancel") {
 				await tx.studentFee.updateMany({
@@ -1131,9 +1068,7 @@ University Management System
 				};
 			}
 
-			// =================================================
-			// UNKNOWN STATUS
-			// =================================================
+
 
 			return {
 				executedPaymentResult,
@@ -1152,20 +1087,18 @@ University Management System
 };
 
 
-// =====================================================
-// EXPORT
-// =====================================================
+
 
 export const SemesterService = {
 
-	// Semester CRUD
+
 	createSemester,
 	getAllSemesters,
 	getSingleSemester,
 	updateSemester,
 	deleteSemester,
 
-	// Semester payment
+
 	initiateSemesterRegistration,
 	paySemesterRegistrationFee,
 	bookSemesterPaymentCallback,

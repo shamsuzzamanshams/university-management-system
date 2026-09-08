@@ -11,9 +11,7 @@ import { SemesterService } from "./semester.service";
 import { sendResponse } from "../../utils/sendResponse";
 
 
-// =====================================================
-// CREATE SEMESTER
-// =====================================================
+
 
 const createSemester = async (
   req: Request,
@@ -36,9 +34,7 @@ const createSemester = async (
 };
 
 
-// =====================================================
-// GET ALL SEMESTERS
-// =====================================================
+
 
 const getAllSemesters = async (
   req: Request,
@@ -61,9 +57,7 @@ const getAllSemesters = async (
 };
 
 
-// =====================================================
-// GET SINGLE SEMESTER
-// =====================================================
+
 
 const getSingleSemester = async (
   req: Request,
@@ -90,9 +84,8 @@ const getSingleSemester = async (
 };
 
 
-// =====================================================
-// UPDATE SEMESTER
-// =====================================================
+
+
 
 const updateSemester = async (
   req: Request,
@@ -120,9 +113,7 @@ const updateSemester = async (
 };
 
 
-// =====================================================
-// DELETE SEMESTER
-// =====================================================
+
 
 const deleteSemester = async (
   req: Request,
@@ -149,9 +140,7 @@ const deleteSemester = async (
 };
 
 
-// =====================================================
-// INITIATE PAYMENT
-// =====================================================
+
 
 const initiateSemesterRegistration = async (
   req: Request,
@@ -180,9 +169,7 @@ const initiateSemesterRegistration = async (
 };
 
 
-// =====================================================
-// RETRY PAYMENT
-// =====================================================
+
 
 const paySemesterRegistrationFee = async (
   req: Request,
@@ -210,9 +197,7 @@ const paySemesterRegistrationFee = async (
 };
 
 
-// =====================================================
-// Bkash PAYMENT CALLBACK
-// =====================================================
+
 
 const bookSemesterPaymentCallback = async (
   req: Request,
@@ -232,19 +217,17 @@ const bookSemesterPaymentCallback = async (
 };
 
 
-// =====================================================
-// EXPORT
-// =====================================================
+
 
 export const SemesterController = {
-  // CRUD
+
   createSemester,
   getAllSemesters,
   getSingleSemester,
   updateSemester,
   deleteSemester,
 
-  // Payment
+
   initiateSemesterRegistration,
   paySemesterRegistrationFee,
   bookSemesterPaymentCallback,
