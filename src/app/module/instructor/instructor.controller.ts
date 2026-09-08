@@ -52,8 +52,8 @@ const verifyInstructorOtp = catchAsync(async (req, res) => {
 const approveInstructor = catchAsync(async (req, res) => {
   const { instructorId } = req.body;
 
-  console.log("BODY:", req.body);
-  console.log("INSTRUCTOR ID:", instructorId);
+//   console.log("BODY:", req.body);
+//   console.log("INSTRUCTOR ID:", instructorId);
 
   if (!instructorId) {
     throw new AppError(
