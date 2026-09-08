@@ -8,7 +8,7 @@ model Section {
   instructorId String
   attendances  Attendance[]
   exams        Exam[]
-  instructor   Instructor   @relation(fields: [instructorId], references: [id])
+  // instructor   Instructor   @relation(fields: [instructorId], references: [id])
 
   @@unique([semesterId, name])
   @@map("section")

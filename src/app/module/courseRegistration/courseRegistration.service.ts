@@ -8,13 +8,10 @@ import { string } from "zod";
 
 
 
-/**
- * Handle Student Course Registration Submission
- */
 const registerCourses = async (userId: string, payload: ICourseRegistrationPayload) => {
   const { semesterId, academicYear, semester, courses } = payload;
 
-  // 1. Fetch the Student profile along with their assigned Program
+ 
   const student = await prisma.student.findUnique({
     where: { userId },
     include: { program: true },
@@ -28,7 +25,7 @@ const registerCourses = async (userId: string, payload: ICourseRegistrationPaylo
     throw new AppError(httpStatus.BAD_REQUEST, "Student is not assigned to any academic program.");
   }
 
-  // 🚀 NEW LOGIC: Verify Student Semester Payment Status before allowing registration
+  
   const semesterFee = await prisma.studentFee.findFirst({
     where: {
       studentId: student.id,
@@ -36,7 +33,7 @@ const registerCourses = async (userId: string, payload: ICourseRegistrationPaylo
     },
   });
 
-  // If no fee record exists at all for this semester, block them as they haven't initiated registration
+  
   if (!semesterFee) {
     throw new AppError(
       httpStatus.PAYMENT_REQUIRED,
@@ -44,7 +41,7 @@ const registerCourses = async (userId: string, payload: ICourseRegistrationPaylo
     );
   }
 
-  // Block registration if the bKash status is UNPAID or FAILED
+
   if (semesterFee.status === "UNPAID") {
     throw new AppError(
       httpStatus.PAYMENT_REQUIRED,
@@ -168,9 +165,7 @@ return await transactionClient.courseEnrollment.createMany({
   };
 };
 
-/**
- * Retrieve current logged-in student's active semester selections
- */
+
 const getMyRegisteredCourses = async (userId: string, academicSemesterId: string) => {
   const student = await prisma.student.findUnique({
     where: { userId },
