@@ -26,6 +26,7 @@ enum FeeStatus {
   PAID
   OVERDUE
   FAILED
+  CANCELLED
 }
 
 enum AuthProvider {

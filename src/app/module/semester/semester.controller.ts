@@ -1,13 +1,28 @@
-import { NextFunction, Request, Response } from "express";
+import {
+  NextFunction,
+  Request,
+  Response,
+} from "express";
+
 import httpStatus from "http-status";
-// import sendResponse from "../../utils/sendResponse";
+
 import { SemesterService } from "./semester.service";
+
 import { sendResponse } from "../../utils/sendResponse";
 
 
-const createSemester = async (req: Request, res: Response, next: NextFunction) => {
+// =====================================================
+// CREATE SEMESTER
+// =====================================================
+
+const createSemester = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    const result = await SemesterService.createSemester(req.body);
+    const result =
+      await SemesterService.createSemester(req.body);
 
     sendResponse(res, {
       statusCode: httpStatus.CREATED,
@@ -19,18 +34,25 @@ const createSemester = async (req: Request, res: Response, next: NextFunction) =
     next(error);
   }
 };
-/**
- * Controller to initialize semester registration and generate bKash payment URL
- */
-const initiateSemesterRegistration = async (req: Request, res: Response, next: NextFunction) => {
+
+
+// =====================================================
+// GET ALL SEMESTERS
+// =====================================================
+
+const getAllSemesters = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    const user = req.user!; // Populated by your auth middleware
-    const result = await SemesterService.initiateSemesterRegistration(req.body, user);
+    const result =
+      await SemesterService.getAllSemesters();
 
     sendResponse(res, {
-      statusCode: httpStatus.CREATED,
+      statusCode: httpStatus.OK,
       success: true,
-      message: "Semester registration initiated successfully! Redirecting to bKash checkout.",
+      message: "Academic Semesters retrieved successfully!",
       data: result,
     });
   } catch (error) {
@@ -38,13 +60,143 @@ const initiateSemesterRegistration = async (req: Request, res: Response, next: N
   }
 };
 
-/**
- * Controller to retry payment processing for an existing UNPAID invoice record
- */
-const paySemesterRegistrationFee = async (req: Request, res: Response, next: NextFunction) => {
+
+// =====================================================
+// GET SINGLE SEMESTER
+// =====================================================
+
+const getSingleSemester = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { semesterId } = req.params;
+
+    const result =
+      await SemesterService.getSingleSemester(
+        semesterId as string
+      );
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Academic Semester retrieved successfully!",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+// =====================================================
+// UPDATE SEMESTER
+// =====================================================
+
+const updateSemester = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { semesterId } = req.params;
+
+    const result =
+      await SemesterService.updateSemester(
+        semesterId as string,
+        req.body
+      );
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Academic Semester updated successfully!",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+// =====================================================
+// DELETE SEMESTER
+// =====================================================
+
+const deleteSemester = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { semesterId } = req.params;
+
+    const result =
+      await SemesterService.deleteSemester(
+        semesterId as string
+      );
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Academic Semester deleted successfully!",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+// =====================================================
+// INITIATE PAYMENT
+// =====================================================
+
+const initiateSemesterRegistration = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const user = req.user!;
-    const result = await SemesterService.paySemesterRegistrationFee(req.body, user);
+
+    const result =
+      await SemesterService.initiateSemesterRegistration(
+        req.body,
+        user
+      );
+
+    sendResponse(res, {
+      statusCode: httpStatus.CREATED,
+      success: true,
+      message:
+        "Semester registration initiated successfully! Redirecting to bKash checkout.",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+// =====================================================
+// RETRY PAYMENT
+// =====================================================
+
+const paySemesterRegistrationFee = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const user = req.user!;
+
+    const result =
+      await SemesterService.paySemesterRegistrationFee(
+        req.body,
+        user
+      );
 
     sendResponse(res, {
       statusCode: httpStatus.OK,
@@ -57,24 +209,42 @@ const paySemesterRegistrationFee = async (req: Request, res: Response, next: Nex
   }
 };
 
-/**
- * Controller to handle tokenized bKash execution router parameters (Callback Webhook)
- * Redirects the user's browser view based on the returned checkout state parameters
- */
-const bookSemesterPaymentCallback = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    // bKash returns status parameters in the URL query string (e.g. ?paymentID=xxx&status=success)
-    const result = await SemesterService.bookSemesterPaymentCallback(req.query);
 
-    // Redirect the student's browser tab straight back to the frontend target page layout mapping
+// =====================================================
+// Bkash PAYMENT CALLBACK
+// =====================================================
+
+const bookSemesterPaymentCallback = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result =
+      await SemesterService.bookSemesterPaymentCallback(
+        req.query
+      );
+
     res.redirect(result.redirectUrl);
   } catch (error) {
     next(error);
   }
 };
 
+
+// =====================================================
+// EXPORT
+// =====================================================
+
 export const SemesterController = {
-   createSemester,
+  // CRUD
+  createSemester,
+  getAllSemesters,
+  getSingleSemester,
+  updateSemester,
+  deleteSemester,
+
+  // Payment
   initiateSemesterRegistration,
   paySemesterRegistrationFee,
   bookSemesterPaymentCallback,

@@ -1,412 +1,1171 @@
-// import { Prisma, FeeStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { RequstUser } from "../../middleware/checkAuth";
 import AppError from "../../utils/AppError";
 import httpStatus from "http-status";
 import config from "../../config";
-import { ICreateSemesterPayload, IInitializeRegistrationPayload, IPayRegistrationPayload } from "./semester.interface";
+
+import {
+	ICreateSemesterPayload,
+	IUpdateSemesterPayload,
+	IInitializeRegistrationPayload,
+	IPayRegistrationPayload,
+} from "./semester.interface";
+
 import { getBkashToken } from "../../lib/bkash";
+
 import { FeeStatus } from "../../../generated/prisma/enums";
 import { Prisma } from "../../../generated/prisma/client";
+
 import { transpoter } from "../../lib/nodemailer";
-import  PDFDocument  from "pdfkit";
+
+import PDFDocument from "pdfkit";
 
 
+// =====================================================
+// CREATE SEMESTER
+// =====================================================
 
-const createSemester = async (payload: ICreateSemesterPayload) => {
-	const { name, code, startDate, endDate, registrationOpen } = payload;
+const createSemester = async (
+	payload: ICreateSemesterPayload
+) => {
+	const code = payload.code.trim().toUpperCase();
 
-	// 1. Guard against duplicate semester codes to prevent primary constraint database crashes
-	const isSemesterCodeExists = await prisma.semester.findUnique({
-		where: { code: code.toUpperCase().trim() },
-	});
-
-	if (isSemesterCodeExists) {
-		throw new AppError(
-			httpStatus.CONFLICT,
-			`An academic semester record already exists with the code '${code}'.`
-		);
-	}
-
-	// 2. Commit a fresh row mapping to the table tracking schema
-	const newSemester = await prisma.semester.create({
-		data: {
-			name,
-			code: code.toUpperCase().trim(),
-			startDate: new Date(startDate),
-			endDate: new Date(endDate),
-			registrationOpen: registrationOpen || false, // Defaults safely to false if not passed
+	const existingSemester = await prisma.semester.findUnique({
+		where: {
+			code,
 		},
 	});
 
-	return newSemester;
+	if (existingSemester) {
+		throw new AppError(
+			httpStatus.CONFLICT,
+			"Semester with this code already exists."
+		);
+	}
+
+	const startDate = new Date(payload.startDate);
+	const endDate = new Date(payload.endDate);
+
+	if (startDate >= endDate) {
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			"End date must be greater than start date."
+		);
+	}
+
+	const semester = await prisma.semester.create({
+		data: {
+			name: payload.name.trim(),
+			code,
+			startDate,
+			endDate,
+			registrationOpen: payload.registrationOpen ?? false,
+		},
+	});
+
+	return semester;
 };
-/**
- * 1. Initialize Semester Registration and Create a bKash Tokenized checkout redirect link
- */
-const initiateSemesterRegistration = async (payload: IInitializeRegistrationPayload, user: RequstUser) => {
-	const semesterId = payload?.semesterId;
-	const studentId = payload?.studentId;
-	const amount = payload?.amount;
-	const description = payload?.description;
 
-	// Early protective validation safeguards
-	if (!semesterId) {
-		throw new AppError(httpStatus.BAD_REQUEST, "Missing 'semesterId' in request body parameters.");
-	}
-	if (!studentId) {
-		throw new AppError(httpStatus.BAD_REQUEST, "Missing 'studentId' in request body parameters.");
+
+// =====================================================
+// GET ALL SEMESTERS
+// =====================================================
+
+const getAllSemesters = async () => {
+	const semesters = await prisma.semester.findMany({
+		orderBy: {
+			startDate: "desc",
+		},
+
+		include: {
+			enrollments: true,
+			studentFees: true,
+		},
+	});
+
+	return semesters;
+};
+
+
+// =====================================================
+// GET SINGLE SEMESTER
+// =====================================================
+
+const getSingleSemester = async (
+	semesterId: string
+) => {
+	const semester = await prisma.semester.findUnique({
+		where: {
+			id: semesterId,
+		},
+
+		include: {
+			enrollments: true,
+			studentFees: true,
+		},
+	});
+
+	if (!semester) {
+		throw new AppError(
+			httpStatus.NOT_FOUND,
+			"Semester not found."
+		);
 	}
 
-	const transactionResult = await prisma.$transaction(async (tx) => {
-		// 🚀 DYNAMIC LOOKUP: Works seamlessly whether they send a UUID or a "STU-" identifier code string!
-		const student = await tx.student.findFirst({
+	return semester;
+};
+
+
+// =====================================================
+// UPDATE SEMESTER
+// =====================================================
+
+const updateSemester = async (
+	semesterId: string,
+	payload: IUpdateSemesterPayload
+) => {
+	const existingSemester = await prisma.semester.findUnique({
+		where: {
+			id: semesterId,
+		},
+	});
+
+	if (!existingSemester) {
+		throw new AppError(
+			httpStatus.NOT_FOUND,
+			"Semester not found."
+		);
+	}
+
+	let code = existingSemester.code;
+
+	if (payload.code) {
+		code = payload.code.trim().toUpperCase();
+
+		const duplicateSemester = await prisma.semester.findFirst({
 			where: {
-				OR: [
-					{ id: studentId },        // Checks if it's the database entry UUID string
-					{ studentId: studentId }  // Checks if it's the institutional "STU-..." text code
-				]
-			}
+				code,
+				NOT: {
+					id: semesterId,
+				},
+			},
+		});
+
+		if (duplicateSemester) {
+			throw new AppError(
+				httpStatus.CONFLICT,
+				"Another semester with this code already exists."
+			);
+		}
+	}
+
+	const startDate = payload.startDate
+		? new Date(payload.startDate)
+		: existingSemester.startDate;
+
+	const endDate = payload.endDate
+		? new Date(payload.endDate)
+		: existingSemester.endDate;
+
+	if (startDate >= endDate) {
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			"End date must be greater than start date."
+		);
+	}
+
+	const semester = await prisma.semester.update({
+		where: {
+			id: semesterId,
+		},
+
+		data: {
+			name: payload.name?.trim(),
+			code,
+			startDate,
+			endDate,
+			registrationOpen: payload.registrationOpen,
+		},
+	});
+
+	return semester;
+};
+
+
+// =====================================================
+// DELETE SEMESTER
+// =====================================================
+
+const deleteSemester = async (
+	semesterId: string
+) => {
+	const existingSemester = await prisma.semester.findUnique({
+		where: {
+			id: semesterId,
+		},
+	});
+
+	if (!existingSemester) {
+		throw new AppError(
+			httpStatus.NOT_FOUND,
+			"Semester not found."
+		);
+	}
+
+	const semester = await prisma.semester.delete({
+		where: {
+			id: semesterId,
+		},
+	});
+
+	return semester;
+};
+
+
+// =====================================================
+// INITIATE SEMESTER REGISTRATION PAYMENT
+// =====================================================
+
+const initiateSemesterRegistration = async (
+	payload: IInitializeRegistrationPayload,
+	user: RequstUser
+) => {
+	const {
+		semesterId,
+		amount,
+		description,
+	} = payload;
+
+	if (!semesterId) {
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			"Semester ID is required."
+		);
+	}
+
+	const result = await prisma.$transaction(async (tx) => {
+
+		// Find logged-in student's profile
+		const student = await tx.student.findUnique({
+			where: {
+				userId: user.userId,
+			},
 		});
 
 		if (!student) {
-			throw new AppError(httpStatus.NOT_FOUND, `Student Profile Not Found with identifier: ${studentId}`);
+			throw new AppError(
+				httpStatus.NOT_FOUND,
+				"Student profile not found."
+			);
 		}
 
-		// Security Guard Clause
-		if (student.userId !== user.userId) {
-			throw new AppError(httpStatus.FORBIDDEN, "Unauthorized action. You can only register for your own account.");
-		}
-
-		// Verify target semester existence
-		const verefySemester = await tx.semester.findUnique({
-			where: { id: semesterId }, 
+		// Find semester
+		const semester = await tx.semester.findUnique({
+			where: {
+				id: semesterId,
+			},
 		});
 
-		if (!verefySemester) {
-			throw new AppError(httpStatus.NOT_FOUND, "Selected Semester Not Found");
+		if (!semester) {
+			throw new AppError(
+				httpStatus.NOT_FOUND,
+				"Semester not found."
+			);
 		}
 
-		if (!verefySemester.registrationOpen) {
-			throw new AppError(httpStatus.BAD_REQUEST, "Registration Is Currently Closed For This Semester");
+		// Check registration
+		if (!semester.registrationOpen) {
+			throw new AppError(
+				httpStatus.BAD_REQUEST,
+				"Semester registration is currently closed."
+			);
 		}
 
-		// Check for active historical payment blocks for this specific student and semester
+		// Check existing fee
 		const existingFee = await tx.studentFee.findFirst({
 			where: {
 				studentId: student.id,
-				semesterId: verefySemester.id
+				semesterId,
 			},
 		});
 
 		if (existingFee?.status === FeeStatus.PAID) {
-			throw new AppError(httpStatus.BAD_REQUEST, "You Have Already Paid Your Fees For This Semester.");
+			throw new AppError(
+				httpStatus.BAD_REQUEST,
+				"You Have Already Paid Your Fees For This Semester."
+			);
 		}
 
 		if (existingFee?.status === FeeStatus.UNPAID) {
 			throw new AppError(
-				httpStatus.BAD_REQUEST, 
+				httpStatus.BAD_REQUEST,
 				"You Already Have An Unpaid Invoice. Please complete payment using the Retry endpoint."
 			);
 		}
 
-		const generatedInvoiceNumber = `INV-${verefySemester.code}-${Date.now()}`;
-		const computedDueDate = new Date();
-		computedDueDate.setDate(computedDueDate.getDate() + 7); // Due exactly 7 days from now
+		// Create invoice
+		const merchantInvoiceNumber =
+			`SEM-${semester.code}-${Date.now()}`;
 
-		// Create Student Fee billing record using strict decimal parsing rules
+		const dueDate = new Date();
+
+		dueDate.setDate(
+			dueDate.getDate() + 7
+		);
+
 		const studentFee = await tx.studentFee.create({
 			data: {
-				amount: new Prisma.Decimal(amount),
-				dueDate: computedDueDate,
-				status: FeeStatus.UNPAID,
-				description,
 				studentId: student.id,
-				semesterId: verefySemester.id,
-				merchantInvoiceNumber: generatedInvoiceNumber,
+				semesterId,
+
+				amount: new Prisma.Decimal(amount),
+
+				status: FeeStatus.UNPAID,
+
+				dueDate,
+
+				description,
+
+				merchantInvoiceNumber,
+
 				payerReference: user.email,
+
 				paymentGetway: "bkash",
+
 				currency: "BDT",
 			},
 		});
 
-		// Fetch fresh token string from bKash server backend
-		const bkashIdToken = await getBkashToken();
-		if (!bkashIdToken) {
-			throw new AppError(httpStatus.BAD_GATEWAY, "No bKash access token found!");
+		// Get bKash token
+		const token = await getBkashToken();
+
+		if (!token) {
+			throw new AppError(
+				httpStatus.BAD_GATEWAY,
+				"No bkash access token found!"
+			);
 		}
 
-		const bkashCreatePaymentResponse = await fetch(
+		// Create bKash payment
+		const paymentResponse = await fetch(
 			`${config.bkash_base_url}/tokenized/checkout/create`,
 			{
 				method: "POST",
+
 				headers: {
 					"Content-Type": "application/json",
 					Accept: "application/json",
-					Authorization: bkashIdToken,
-					"X-App-Key": config.bkash_app_key,
+					authorization: token,
+					"x-app-key": config.bkash_app_key!,
 				},
+
 				body: JSON.stringify({
 					mode: "0011",
+
 					payerReference: user.email,
-					callbackURL: `${config.bkash_callback_url}/semester/payment/callback`,
+
+					callbackURL:
+						`${config.bkash_callback_url}/semester/payment/callback`,
+
 					amount: amount.toString(),
+
 					currency: "BDT",
+
 					intent: "sale",
-					merchantInvoiceNumber: studentFee.merchantInvoiceNumber, 
+
+					merchantInvoiceNumber,
 				}),
-			},
+			}
 		);
 
-		const bkashCreatePaymentResult = await bkashCreatePaymentResponse.json();
+		const paymentResult =
+			await paymentResponse.json();
 
-		// Update invoice row tracking data parameters received from bKash response
+		if (
+			!paymentResponse.ok ||
+			!paymentResult?.bkashURL
+		) {
+			throw new AppError(
+				httpStatus.BAD_GATEWAY,
+				"Unable to create bKash payment."
+			);
+		}
+
+		// Save bKash payment ID
 		await tx.studentFee.update({
-			where: { id: studentFee.id },
+			where: {
+				id: studentFee.id,
+			},
+
 			data: {
-				bkashPaymentId: bkashCreatePaymentResult.paymentID,
+				bkashPaymentId:
+					paymentResult.paymentID,
 			},
 		});
 
 		return {
-			paymentUrl: bkashCreatePaymentResult.bkashURL,
+			feeId: studentFee.id,
+
+			paymentId:
+				paymentResult.paymentID,
+
+			paymentUrl:
+				paymentResult.bkashURL,
 		};
 	});
 
-	return transactionResult;
+	return result;
 };
 
 
-/**
- * 2. Retry Payment checkout loop for an existing pending / UNPAID semester registration invoice
- */
-const paySemesterRegistrationFee = async (payload: IPayRegistrationPayload, user: RequstUser) => {
+// =====================================================
+// RETRY PAYMENT
+// =====================================================
+
+const paySemesterRegistrationFee = async (
+	payload: IPayRegistrationPayload,
+	user: RequstUser
+) => {
 	const { feeId } = payload;
 
-	const existingFee = await prisma.studentFee.findUnique({
-		where: { id: feeId },
-	});
+	const existingFee =
+		await prisma.studentFee.findUnique({
+			where: {
+				id: feeId,
+			},
+
+			include: {
+				student: true,
+				semester: true,
+			},
+		});
 
 	if (!existingFee) {
-		throw new AppError(httpStatus.NOT_FOUND, "Invoice Record Does Not Exist");
+		throw new AppError(
+			httpStatus.NOT_FOUND,
+			"Student fee invoice not found."
+		);
 	}
 
-	if (existingFee.status !== FeeStatus.UNPAID) {
-		throw new AppError(httpStatus.CONFLICT, "This Invoice Is Already Paid Or Cancelled");
+	// Security check
+	if (
+		existingFee.student.userId !== user.userId
+	) {
+		throw new AppError(
+			httpStatus.FORBIDDEN,
+			"You are not allowed to pay this invoice."
+		);
 	}
 
-	const bkashIdToken = await getBkashToken();
-	if (!bkashIdToken) {
-		throw new AppError(httpStatus.BAD_GATEWAY, "No bKash Access Token Found!");
+	if (
+		existingFee.status === FeeStatus.PAID
+	) {
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			"This invoice has already been paid."
+		);
 	}
 
-	const bkashCreatePaymentResponse = await fetch(
+	const token = await getBkashToken();
+
+	if (!token) {
+		throw new AppError(
+			httpStatus.BAD_GATEWAY,
+			"No bkash access token found!"
+		);
+	}
+
+	const paymentResponse = await fetch(
 		`${config.bkash_base_url}/tokenized/checkout/create`,
 		{
 			method: "POST",
+
 			headers: {
 				"Content-Type": "application/json",
 				Accept: "application/json",
-				Authorization: bkashIdToken,
-				"X-App-Key": config.bkash_app_key,
+				authorization: token,
+				"x-app-key": config.bkash_app_key!,
 			},
+
 			body: JSON.stringify({
 				mode: "0011",
+
 				payerReference: user.email,
-				callbackURL: `${config.bkash_callback_url}/semester/payment/callback`,
-				amount: existingFee.amount.toString(),
+
+				callbackURL:
+					`${config.bkash_callback_url}/semester/payment/callback`,
+
+				amount:
+					existingFee.amount.toString(),
+
 				currency: "BDT",
+
 				intent: "sale",
-				merchantInvoiceNumber: existingFee.merchantInvoiceNumber,
+
+				merchantInvoiceNumber:
+					existingFee.merchantInvoiceNumber,
 			}),
-		},
+		}
 	);
 
-	const bkashCreatePaymentResult = await bkashCreatePaymentResponse.json();
+	const paymentResult =
+		await paymentResponse.json();
 
-	// Update active payment identification tracking tokens
+	if (
+		!paymentResponse.ok ||
+		!paymentResult?.bkashURL
+	) {
+		throw new AppError(
+			httpStatus.BAD_GATEWAY,
+			"Unable to regenerate bKash payment."
+		);
+	}
+
 	await prisma.studentFee.update({
-		where: { id: existingFee.id },
+		where: {
+			id: feeId,
+		},
+
 		data: {
-			bkashPaymentId: bkashCreatePaymentResult.paymentID,
+			bkashPaymentId:
+				paymentResult.paymentID,
 		},
 	});
 
 	return {
-		paymentUrl: bkashCreatePaymentResult.bkashURL,
+		feeId,
+
+		paymentId:
+			paymentResult.paymentID,
+
+		paymentUrl:
+			paymentResult.bkashURL,
 	};
 };
 
-/**
- * 3. bKash Gateway Execute Webhook/Callback handler (IPN Instant Payment Verification)
- */
-const bookSemesterPaymentCallback = async (query: Record<string, any>) => {
-	const transactionResult = await prisma.$transaction(async (tx) => {
-		const paymentId = query.paymentID;
-		if (!paymentId) {
-			throw new AppError(httpStatus.BAD_REQUEST, "Payment is missing");
-		}
-		const status = query.status;
-		if (!status) {
-			throw new AppError(httpStatus.BAD_REQUEST, "Payment Status is missing");
-		}
 
-		const bkashIdToken = await getBkashToken();
 
-		if (!bkashIdToken) {
-			throw new AppError(httpStatus.BAD_GATEWAY, "No bkash access token found!");
-		}
 
-		const executedPaymentResponse = await fetch(
-			`${config.bkash_base_url}/tokenized/checkout/execute`,
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Accept: "application/json",
-					Authorization: bkashIdToken,
-					"X-App-Key": config.bkash_app_key,
-				},
-				body: JSON.stringify({
-					paymentID: paymentId,
-				}),
-			},
-		);
+const bookSemesterPaymentCallback = async (
+	query: Record<string, any>
+) => {
+	const transactionResult = await prisma.$transaction(
+		async (tx) => {
+			const paymentId = query.paymentID;
 
-		const executedPaymentResult = await executedPaymentResponse.json();
-
-		if (status === "success") {
-			// Locate target invoice referencing the transaction payment identifier
-			const studentFee = await tx.studentFee.findFirst({
-				where: {
-					merchantInvoiceNumber: executedPaymentResult.merchantInvoiceNumber
-				},
-				include: {
-					student: {
-						include: {
-							department: true,
-							program: true
-						}
-					},
-					semester: true
-				}
-			});
-
-			if (!studentFee) {
-				throw new AppError(httpStatus.NOT_FOUND, "Semester Registration Invoice Record Not Found!");
+			if (!paymentId) {
+				throw new AppError(
+					httpStatus.BAD_REQUEST,
+					"Payment is missing"
+				);
 			}
 
-			// Finalize structural fee parameters tracking records inside transaction layer
-			await tx.studentFee.update({
-				where: {
-					id: studentFee.id,
-				},
-				data: {
-					status: FeeStatus.PAID,
-					bkashTrxId: executedPaymentResult.trxID,
-					paidAt: new Date(),
-					// If your model contains a dynamic metadata field matching blueprint style:
-					// getwayResponse: executedPaymentResult 
-				},
-			});
+			const status = query.status;
 
-			// --- PDFKIT Dynamic Buffer Streaming Channel Generation ---
-			const pdfDocument = new PDFDocument({ margin: 50 });
-			const pdfChunks: Buffer[] = [];
+			if (!status) {
+				throw new AppError(
+					httpStatus.BAD_REQUEST,
+					"Payment Status is missing"
+				);
+			}
 
-			pdfDocument.on("data", (chunk: Buffer) => {
-				pdfChunks.push(chunk);
-			});
+			// =================================================
+			// GET BKASH TOKEN
+			// =================================================
 
-			const pdfReadyPromise = new Promise<Buffer>((resolve) => {
-				pdfDocument.on("end", () => {
-					resolve(Buffer.concat(pdfChunks));
+			const bkashIdToken = await getBkashToken();
+
+			if (!bkashIdToken) {
+				throw new AppError(
+					httpStatus.BAD_GATEWAY,
+					"No bkash access token found!"
+				);
+			}
+
+			// =================================================
+			// EXECUTE BKASH PAYMENT
+			// =================================================
+
+			const executedPaymentResponse = await fetch(
+				`${config.bkash_base_url}/tokenized/checkout/execute`,
+				{
+					method: "POST",
+
+					headers: {
+						"Content-Type": "application/json",
+						Accept: "application/json",
+						Authorization: bkashIdToken,
+						"X-App-Key": config.bkash_app_key!,
+					},
+
+					body: JSON.stringify({
+						paymentID: paymentId,
+					}),
+				}
+			);
+
+			const executedPaymentResult =
+				await executedPaymentResponse.json();
+
+			// =================================================
+			// PAYMENT SUCCESS
+			// =================================================
+
+			if (
+				status === "success" &&
+				executedPaymentResponse.ok &&
+				executedPaymentResult?.statusCode === "0000"
+			) {
+				// -----------------------------------------------
+				// FIND STUDENT FEE
+				// -----------------------------------------------
+
+				const studentFee =
+					await tx.studentFee.findFirst({
+						where: {
+							merchantInvoiceNumber:
+								executedPaymentResult.merchantInvoiceNumber,
+						},
+
+						include: {
+							student: {
+								include: {
+									department: true,
+									program: true,
+								},
+							},
+
+							semester: true,
+						},
+					});
+
+				if (!studentFee) {
+					throw new AppError(
+						httpStatus.NOT_FOUND,
+						"Student fee invoice not found."
+					);
+				}
+
+				// -----------------------------------------------
+				// PREVENT DUPLICATE PAYMENT PROCESSING
+				// -----------------------------------------------
+
+				if (studentFee.status === FeeStatus.PAID) {
+					return {
+						redirectUrl:
+							`${config.frontend_url}/dashboard/semester?status=success`,
+					};
+				}
+
+				// -----------------------------------------------
+				// UPDATE FEE AS PAID
+				// -----------------------------------------------
+
+				const paidFee = await tx.studentFee.update({
+					where: {
+						id: studentFee.id,
+					},
+					data: {
+						status: FeeStatus.PAID,
+						bkashTrxId: executedPaymentResult.trxID,
+						paidAt: new Date(),
+					},
+					include: {
+						student: {
+							include: {
+								department: true,
+								program: true,
+							},
+						},
+						semester: true,
+					},
 				});
-			});
 
-			// Building layout structure precisely as blueprint guidelines dictate
-			pdfDocument.fontSize(20).text("University Management System", { align: "center" });
-			pdfDocument.fontSize(14).text("Semester Registration Receipt", { align: "center" });
-			pdfDocument.moveDown(2);
+				// =================================================
+				// GENERATE PDF RECEIPT
+				// =================================================
 
-			pdfDocument.fontSize(12).text(`Student Name: ${studentFee.student?.name}`);
-			pdfDocument.text(`Student Institutional ID: ${studentFee.student?.studentId}`);
-			pdfDocument.text(`Student Email: ${studentFee.student?.email}`);
-			pdfDocument.moveDown();
+				const pdfBuffer =
+					await new Promise<Buffer>(
+						(resolve, reject) => {
+							const pdfDocument =
+								new PDFDocument({
+									size: "A4",
+									margin: 50,
+								});
 
-			pdfDocument.text(`Department Name: ${studentFee.student?.department?.name || "N/A"}`);
-			pdfDocument.text(`Program Name: ${studentFee.student?.program?.name || "N/A"}`);
-			pdfDocument.text(`Academic Semester: ${studentFee.semester?.name || "N/A"}`);
-			pdfDocument.moveDown();
+							const pdfChunks: Buffer[] = [];
 
-			pdfDocument.text(`Amount Paid: ${executedPaymentResult.amount || studentFee.amount.toString()} BDT`);
-			pdfDocument.text(`Payment Method: bKash Tokenized Checkout`);
-			pdfDocument.text(`Transaction Id: ${executedPaymentResult.trxID}`);
-			pdfDocument.text(`Paid At: ${new Date().toLocaleString()}`);
+							// -----------------------------------------
+							// PDF DATA
+							// -----------------------------------------
 
-			pdfDocument.end();
+							pdfDocument.on(
+								"data",
+								(chunk: Buffer) => {
+									pdfChunks.push(chunk);
+								}
+							);
 
-			const pdfBuffer = await pdfReadyPromise;
+							// -----------------------------------------
+							// PDF COMPLETE
+							// -----------------------------------------
 
-			// Dispatch confirmation notification containing generated file metadata stream
-			await transpoter.sendMail({
-				from: config.email_sender,
-				to: studentFee.student.email,
-				subject: "Semester Registration Payment Invoice - University Management System",
-				text: "Thank you for completing your semester payment. Please find your official receipt attached below.",
-				attachments: [
-					{
-						filename: `Invoice-${executedPaymentResult.trxID}.pdf`,
-						content: pdfBuffer
-					}
-				]
-			});
+							pdfDocument.on(
+								"end",
+								() => {
+									resolve(
+										Buffer.concat(pdfChunks)
+									);
+								}
+							);
 
-			return {
-				redirectUrl: `${config.frontend_url}/dashboard/semester?status=success`,
-			};
+							// -----------------------------------------
+							// PDF ERROR
+							// -----------------------------------------
 
-		} else if (status === "failure") {
-			await tx.studentFee.updateMany({
-				where: {
-					bkashPaymentId: paymentId,
-				},
-				data: {
-					status: FeeStatus.FAILED,
-				},
-			});
-			return {
-				redirectUrl: `${config.frontend_url}/dashboard/semester?status=failure`,
-			};
-		} else if (status === "cancel") {
-			await tx.studentFee.updateMany({
-				where: {
-					bkashPaymentId: paymentId,
-				},
-				data: {
-					status: FeeStatus.FAILED, // Safely handle cancelled tracking flows mapping
-				},
-			});
+							pdfDocument.on(
+								"error",
+								(error) => {
+									reject(error);
+								}
+							);
+
+							// =========================================
+							// HEADER
+							// =========================================
+
+							pdfDocument
+								.fontSize(20)
+								.font("Helvetica-Bold")
+								.text(
+									"UNIVERSITY MANAGEMENT SYSTEM",
+									{
+										align: "center",
+									}
+								);
+
+							pdfDocument
+								.moveDown(0.5)
+								.fontSize(15)
+								.font("Helvetica-Bold")
+								.text(
+									"Semester Registration Payment Receipt",
+									{
+										align: "center",
+									}
+								);
+
+							pdfDocument.moveDown(1);
+
+							pdfDocument
+								.fontSize(10)
+								.font("Helvetica")
+								.text(
+									"================================================",
+									{
+										align: "center",
+									}
+								);
+
+							pdfDocument.moveDown(1.5);
+
+							// =========================================
+							// PAYMENT SUCCESS
+							// =========================================
+
+							pdfDocument
+								.fontSize(16)
+								.font("Helvetica-Bold")
+								.text(
+									"PAYMENT SUCCESSFUL",
+									{
+										align: "center",
+									}
+								);
+
+							pdfDocument.moveDown(2);
+
+							// =========================================
+							// STUDENT INFORMATION
+							// =========================================
+
+							pdfDocument
+								.fontSize(14)
+								.font("Helvetica-Bold")
+								.text(
+									"Student Information"
+								);
+
+							pdfDocument.moveDown(0.5);
+
+							pdfDocument
+								.fontSize(11)
+								.font("Helvetica")
+								.text(
+									`Student Name : ${paidFee.student.name}`
+								)
+								.text(
+									`Student ID   : ${paidFee.student.studentId}`
+								)
+								.text(
+									`Email        : ${paidFee.student.email}`
+								)
+								.text(
+									`Department   : ${paidFee.student.department?.name ??
+									"N/A"
+									}`
+								)
+								.text(
+									`Program      : ${paidFee.student.program?.name ??
+									"N/A"
+									}`
+								);
+
+							pdfDocument.moveDown(1.5);
+
+							// =========================================
+							// SEMESTER INFORMATION
+							// =========================================
+
+							pdfDocument
+								.fontSize(14)
+								.font("Helvetica-Bold")
+								.text(
+									"Semester Information"
+								);
+
+							pdfDocument.moveDown(0.5);
+
+							pdfDocument
+								.fontSize(11)
+								.font("Helvetica")
+								.text(
+									`Semester Name : ${paidFee.semester.name}`
+								)
+								.text(
+									`Semester Code : ${paidFee.semester.code}`
+								)
+								.text(
+									`Start Date    : ${paidFee.semester.startDate.toDateString()}`
+								)
+								.text(
+									`End Date      : ${paidFee.semester.endDate.toDateString()}`
+								);
+
+							pdfDocument.moveDown(1.5);
+
+							// =========================================
+							// PAYMENT INFORMATION
+							// =========================================
+
+							pdfDocument
+								.fontSize(14)
+								.font("Helvetica-Bold")
+								.text(
+									"Payment Information"
+								);
+
+							pdfDocument.moveDown(0.5);
+
+							pdfDocument
+								.fontSize(11)
+								.font("Helvetica")
+								.text(
+									`Amount Paid      : BDT ${paidFee.amount.toString()}`
+								)
+								.text(
+									`Payment Method   : bKash`
+								)
+								.text(
+									`Transaction ID   : ${paidFee.bkashTrxId ?? "N/A"
+									}`
+								)
+								.text(
+									`Invoice Number   : ${paidFee.merchantInvoiceNumber}`
+								)
+								.text(
+									`Payment Date     : ${paidFee.paidAt
+										? paidFee.paidAt.toLocaleString()
+										: new Date().toLocaleString()
+									}`
+								)
+								.text(
+									`Payment Status   : PAID`
+								);
+
+							pdfDocument.moveDown(2);
+
+							// =========================================
+							// FOOTER
+							// =========================================
+
+							pdfDocument
+								.fontSize(10)
+								.font("Helvetica")
+								.text(
+									"This is an electronically generated payment receipt.",
+									{
+										align: "center",
+									}
+								);
+
+							pdfDocument
+								.moveDown(0.5)
+								.text(
+									"Thank you for completing your semester registration.",
+									{
+										align: "center",
+									}
+								);
+
+							pdfDocument.moveDown(2);
+
+							pdfDocument
+								.fontSize(9)
+								.text(
+									"University Management System",
+									{
+										align: "center",
+									}
+								);
+
+							// -----------------------------------------
+							// FINISH PDF
+							// -----------------------------------------
+
+							pdfDocument.end();
+						}
+					);
+
+				// =================================================
+				// SEND PDF RECEIPT TO STUDENT EMAIL
+				// =================================================
+
+				try {
+					await transpoter.sendMail({
+						from: config.email_sender,
+
+						to: paidFee.student.email,
+
+						subject:
+							"Semester Registration Payment Receipt - University Management System",
+
+						text: `
+Dear ${paidFee.student.name},
+
+Your semester registration payment has been completed successfully.
+
+Semester: ${paidFee.semester.name}
+Semester Code: ${paidFee.semester.code}
+Amount Paid: BDT ${paidFee.amount.toString()}
+Transaction ID: ${paidFee.bkashTrxId}
+Invoice Number: ${paidFee.merchantInvoiceNumber}
+
+Please find your official payment receipt attached to this email.
+
+Thank you for completing your semester registration.
+
+University Management System
+            `,
+
+						html: `
+              <div
+                style="
+                  font-family: Arial, sans-serif;
+                  max-width: 600px;
+                  margin: auto;
+                  padding: 20px;
+                "
+              >
+
+                <h2>
+                  Semester Registration Payment Successful
+                </h2>
+
+                <p>
+                  Dear
+                  <strong>
+                    ${paidFee.student.name}
+                  </strong>,
+                </p>
+
+                <p>
+                  Your semester registration payment has been
+                  successfully completed.
+                </p>
+
+                <hr />
+
+                <p>
+                  <strong>Semester:</strong>
+                  ${paidFee.semester.name}
+                </p>
+
+                <p>
+                  <strong>Semester Code:</strong>
+                  ${paidFee.semester.code}
+                </p>
+
+                <p>
+                  <strong>Amount Paid:</strong>
+                  BDT ${paidFee.amount.toString()}
+                </p>
+
+                <p>
+                  <strong>Transaction ID:</strong>
+                  ${paidFee.bkashTrxId}
+                </p>
+
+                <p>
+                  <strong>Invoice Number:</strong>
+                  ${paidFee.merchantInvoiceNumber}
+                </p>
+
+                <p>
+                  <strong>Payment Status:</strong>
+                  PAID
+                </p>
+
+                <hr />
+
+                <p>
+                  Your official payment receipt is attached
+                  to this email as a PDF.
+                </p>
+
+                <p>
+                  Thank you for completing your
+                  semester registration.
+                </p>
+
+                <br />
+
+                <strong>
+                  University Management System
+                </strong>
+
+              </div>
+            `,
+
+						attachments: [
+							{
+								filename:
+									`semester-payment-receipt-${paidFee.student.studentId}.pdf`,
+
+								content: pdfBuffer,
+
+								contentType: "application/pdf",
+							},
+						],
+					});
+
+					console.log(
+						`Payment receipt sent successfully to ${paidFee.student.email}`
+					);
+				} catch (error) {
+					// Payment is already successful.
+					// Email failure should not change payment status.
+
+					console.error(
+						"Failed to send payment receipt email:",
+						error
+					);
+				}
+
+				// ================================================
+				// SUCCESS REDIRECT
+				// ================================================
+
+				return {
+					redirectUrl:
+						`${config.frontend_url}/dashboard/semester?status=success`,
+				};
+			}
+
+			// =================================================
+			// PAYMENT FAILURE
+			// =================================================
+
+			if (status === "failure") {
+				await tx.studentFee.updateMany({
+					where: {
+						bkashPaymentId: paymentId,
+					},
+
+					data: {
+						status: FeeStatus.FAILED,
+
+						getwayResponse:
+							executedPaymentResult,
+					},
+				});
+
+				return {
+					redirectUrl:
+						`${config.frontend_url}/dashboard/semester?status=failure`,
+				};
+			}
+
+			// =================================================
+			// PAYMENT CANCELLED
+			// =================================================
+
+			if (status === "cancel") {
+				await tx.studentFee.updateMany({
+					where: {
+						bkashPaymentId: paymentId,
+					},
+
+					data: {
+						status: FeeStatus.CANCELLED,
+
+						getwayResponse:
+							executedPaymentResult,
+					},
+				});
+
+				return {
+					redirectUrl:
+						`${config.frontend_url}/dashboard/semester?status=cancelled`,
+				};
+			}
+
+			// =================================================
+			// UNKNOWN STATUS
+			// =================================================
+
 			return {
 				executedPaymentResult,
-				redirectUrl: `${config.frontend_url}/dashboard/semester?status=cancel`,
+
+				redirectUrl:
+					`${config.frontend_url}/dashboard/semester?status=failed`,
 			};
-		} else {
-			return {
-				executedPaymentResult,
-				redirectUrl: `${config.frontend_url}/dashboard/semester?error=payment-failed`,
-			};
+		},
+		{
+			maxWait: 10000,
+			timeout: 30000,
 		}
-	}, {
-		maxWait: 10000, // Matching your precise blueprint configuration timeouts
-		timeout: 30000, 
-	});
+	);
 
 	return transactionResult;
 };
 
+
+// =====================================================
+// EXPORT
+// =====================================================
+
 export const SemesterService = {
-    createSemester,
+
+	// Semester CRUD
+	createSemester,
+	getAllSemesters,
+	getSingleSemester,
+	updateSemester,
+	deleteSemester,
+
+	// Semester payment
 	initiateSemesterRegistration,
 	paySemesterRegistrationFee,
 	bookSemesterPaymentCallback,

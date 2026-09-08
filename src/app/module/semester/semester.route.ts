@@ -1,39 +1,135 @@
 import express from "express";
-// import { Role } from "@prisma/client";
+
 import { auth } from "../../middleware/checkAuth";
 import { validateRequest } from "../../middleware/validateRequest";
+
 import { SemesterController } from "./semester.controller";
-import { SemesterValidation } from "./semester.validation"; // Import validation object
+import { SemesterValidation } from "./semester.validation";
+
 import { Role } from "../../../generated/prisma/enums";
+
 
 const router = express.Router();
 
+
+// =====================================================
+// CREATE SEMESTER
+// =====================================================
+
 router.post(
   "/create-semester",
-  auth(Role.SUPER_ADMIN, Role.DEPARTMENT_ADMIN),
+
+  auth(
+    Role.SUPER_ADMIN,
+    Role.DEPARTMENT_ADMIN
+  ),
+
+  validateRequest(
+    SemesterValidation.createSemesterZodSchema
+  ),
+
   SemesterController.createSemester
 );
 
-// 1. Route to initialize an invoice and generate a dynamic bKash checkout link
+
+// =====================================================
+// INITIATE SEMESTER PAYMENT
+// =====================================================
+
 router.post(
   "/initiate",
+
   auth(Role.STUDENT),
-//   validateRequest(SemesterValidation.initiateSemesterRegistrationZodSchema), // <-- Injected here
+
+  validateRequest(
+    SemesterValidation.initiateSemesterRegistrationZodSchema
+  ),
+
   SemesterController.initiateSemesterRegistration
 );
 
-// 2. Route to retry payment processing for existing pending UNPAID fee rows
+
+// =====================================================
+// RETRY PAYMENT
+// =====================================================
+
 router.post(
   "/retry-payment",
+
   auth(Role.STUDENT),
-  validateRequest(SemesterValidation.payRegistrationFeeZodSchema), // <-- Injected here
+
+  validateRequest(
+    SemesterValidation.payRegistrationFeeZodSchema
+  ),
+
   SemesterController.paySemesterRegistrationFee
 );
 
-// 3. Callback webhook handler directly invoked by bKash servers (No validation layer needed)
+
+// =====================================================
+// Bkash PAYMENT CALLBACK
+// =====================================================
+
 router.get(
   "/payment/callback",
+
   SemesterController.bookSemesterPaymentCallback
 );
+
+
+// =====================================================
+// GET ALL SEMESTERS
+// =====================================================
+
+router.get(
+  "/",
+
+  SemesterController.getAllSemesters
+);
+
+
+// =====================================================
+// GET SINGLE SEMESTER
+// =====================================================
+
+router.get(
+  "/:semesterId",
+
+  SemesterController.getSingleSemester
+);
+
+
+// =====================================================
+// UPDATE SEMESTER
+// =====================================================
+
+router.patch(
+  "/:semesterId",
+
+  auth(
+    Role.SUPER_ADMIN,
+    Role.DEPARTMENT_ADMIN
+  ),
+
+  validateRequest(
+    SemesterValidation.updateSemesterZodSchema
+  ),
+
+  SemesterController.updateSemester
+);
+
+
+// =====================================================
+// DELETE SEMESTER
+// =====================================================
+
+router.delete(
+  "/:semesterId",
+
+  auth(Role.SUPER_ADMIN),
+
+  SemesterController.deleteSemester
+);
+
 
 export const SemesterRoutes = router;

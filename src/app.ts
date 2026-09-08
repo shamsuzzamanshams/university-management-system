@@ -22,6 +22,9 @@ import { StudentRoutes } from "./app/module/student/student.route";
 import { SemesterRoutes } from "./app/module/semester/semester.route";
 import { CourseRoutes } from "./app/module/course/course.route";
 import { InstructorRoutes } from "./app/module/instructor/instructor.route";
+import { sectionRouter } from "./app/module/section/section.route";
+import { examRouter } from "./app/module/exam/exam.route";
+import { attendanceRouter } from "./app/module/Attendence/attendance.route";
 
 const app: Application = express();
 
@@ -48,6 +51,9 @@ app.use("/api/v1/student", StudentRoutes);
 app.use("/api/v1/semester", SemesterRoutes);
 app.use("/api/v1/payment", PaymentRoutes);
 app.use("/api/v1/instructor", InstructorRoutes);
+app.use("/api/v1/section", sectionRouter);
+app.use("/api/v1/exam", examRouter);
+app.use("/api/v1/attendance", attendanceRouter);
 
 
 // app.post("/zod",async (req: Request, res: Response, next: NextFunction) => {
