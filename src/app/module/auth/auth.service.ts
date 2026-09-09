@@ -114,9 +114,9 @@ const verifyStudentEmail = async (payload: IVerifyEmailPayload) => {
 	const studentId = studentPayload?.student?.studentId || `STU-${Date.now()}`;
 	const departmentId = studentPayload?.student?.departmentId || "";
 	const programId = studentPayload?.student?.programId || "";
-	const enrollmentDate = studentPayload?.student?.enrollmentDate 
-  ? new Date(studentPayload.student.enrollmentDate) 
-  : new Date();
+	const enrollmentDate = studentPayload?.student?.enrollmentDate
+		? new Date(studentPayload.student.enrollmentDate)
+		: new Date();
 
 	// Safe transactional create mirroring the University Prisma configuration rules
 	const createdUser = await prisma.user.create({
@@ -135,15 +135,15 @@ const verifyStudentEmail = async (payload: IVerifyEmailPayload) => {
 					studentId: studentId, // Institutional ID e.g., "2026-0001"
 					enrollmentDate: enrollmentDate,
 					...(departmentId && {
-						department:{
-							connect:{
+						department: {
+							connect: {
 								id: departmentId
 							}
 						}
 					}),
 					...(programId && {
-						program:{
-							connect:{
+						program: {
+							connect: {
 								id: programId
 							}
 						}
@@ -221,9 +221,9 @@ const loginUser = async (payload: ILoginUserPayload) => {
 		);
 	}
 
-// 	 if (user.authProvider === "GOOGLE" || user.authProvider === AuthProvider.GOOGLE) {
-//     throw new Error("User account registered via social provider. Try to login with Google.");
-//   }
+	// 	 if (user.authProvider === "GOOGLE" || user.authProvider === AuthProvider.GOOGLE) {
+	//     throw new Error("User account registered via social provider. Try to login with Google.");
+	//   }
 
 	if (!user.isActive) {
 		throw new Error("User account is inactive");
@@ -338,7 +338,7 @@ const refreshToken = async (token: string) => {
 };
 
 // Modified: Completely mapped, safe processing paths for Google Login flow tracking
-const googleLogin = async (payload: IGoogleLoginPayload) => { 
+const googleLogin = async (payload: IGoogleLoginPayload) => {
 	let googleIdTokenPayload: TokenPayload | null | undefined = null;
 
 	try {
@@ -387,7 +387,7 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 			if (!ifStudentExistCredential.email) {
 				throw new Error("Email Not Verified");
 			}
-	
+
 
 			user = await prisma.user.update({
 				where: {
@@ -415,25 +415,25 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 							email: googleIdTokenPayload.email,
 							studentId: customStudentId,
 							...(departmentId && {
-								department:{
-									connect:{
+								department: {
+									connect: {
 										id: departmentId
-							}
-						}
-					}),
+									}
+								}
+							}),
 							...(programId && {
-								program:{
-									connect:{
+								program: {
+									connect: {
 										id: programId
-							}
-						}
-					})
+									}
+								}
+							})
 
-							
+
 						},
 					},
 				},
-				include:{
+				include: {
 					student: true,
 					instructor: true
 				}
@@ -463,7 +463,7 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 		throw new Error("User Not Found");
 	}
 
-	
+
 
 	const jwtPayload = {
 		userId: user.id,
@@ -564,7 +564,7 @@ const resetPassword = async (payload: IResetPasswordPayload) => {
 		throw new Error("User is inactive or blocked")
 	}
 
-	if (isUserExist.password=== null) {
+	if (isUserExist.password === null) {
 		throw new Error("User Has Account Registered With Google. Try to login with Google.")
 	}
 
@@ -588,7 +588,7 @@ const resetPassword = async (payload: IResetPasswordPayload) => {
 			email: isUserExist.email
 		},
 		data: {
-			passwordHash: hashedNewPassword
+			password: hashedNewPassword
 		}
 	});
 
